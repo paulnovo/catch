@@ -1,0 +1,5 @@
+catch (1.0+gitf7378eeb-1) unstable; urgency=low
+
+  * Initial release (Closes: #722908)
+
+ -- Jérémy Lal <kapouer@melix.org>  Sat, 14 Sep 2013 16:47:31 +0200

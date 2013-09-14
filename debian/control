@@ -1,0 +1,29 @@
+Source: catch
+Section: devel
+Priority: optional
+Maintainer: Jérémy Lal <kapouer@melix.org>
+Build-Depends:
+ debhelper (>= 8),
+ python
+Standards-Version: 3.9.4
+Homepage: https://github.com/philsquared/Catch
+Vcs-Git: git://anonscm.debian.org/collab-maint/catch.git
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=collab-maint/catch.git
+
+Package: catch
+Architecture: any
+Depends:
+ ${misc:Depends}
+Description: C++ Automated Test Cases in Headers
+ Catch is a multi-paradigm automated test framework for C++
+ and Objective-C.
+ .
+ Its key features are:
+  * Distributed as a single header file with no dependencies.
+  * Test cases are self-registering.
+  * Test cases can be de divided into isolated sections.
+  * Behaviour Driven Design style is possible with GIVEN-WHEN-THEN
+    in place of test cases and sections.
+  * Only one core assertion macro for comparisons; standard language
+    operators are used for comparison, yet the expression is decomposed
+    and properly logged.

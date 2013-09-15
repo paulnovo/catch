@@ -4,7 +4,8 @@
 #export DH_VERBOSE=1
 
 upstreamVersion := $(shell dpkg-parsechangelog -SVersion | cut -d- -f1)
-upstreamHash := $(shell echo $(upstreamVersion) | grep -oP '(?<=\+git)\w+')
+upstreamBuild := $(shell echo $(upstreamVersion) | grep -oP '(?<=\+m)\d+(?=git\w+)')
+upstreamHash := $(shell echo $(upstreamVersion) | grep -oP '(?<=\+m$(upstreamBuild)git)\w+')
 upstreamUrl := $(shell grep -oP "(?<=Homepage: )(.+)" $(CURDIR)/debian/control)
 upstreamName := $(shell dpkg-parsechangelog -SSource)
 

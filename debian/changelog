@@ -1,3 +1,9 @@
+catch (1.0+m10git1e2f1d16-1) unstable; urgency=low
+
+  * Upstream update, build 10. Use ordered version number. 
+
+ -- Jérémy Lal <kapouer@melix.org>  Sun, 15 Sep 2013 16:39:43 +0200
+
 catch (1.0+gitf7378eeb-1) unstable; urgency=low
 
   * Initial release (Closes: #722908)

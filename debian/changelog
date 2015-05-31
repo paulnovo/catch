@@ -1,3 +1,9 @@
+catch (1.1.3+gitc51e8681-1) UNRELEASED; urgency=medium
+
+  * Upstream update.
+
+ -- Jérémy Lal <kapouer@melix.org>  Sun, 31 May 2015 15:18:27 +0200
+
 catch (1.0+m10git1e2f1d16-1) unstable; urgency=low
 
   * Upstream update, build 10. Use ordered version number. 

@@ -5,7 +5,7 @@ Maintainer: Jérémy Lal <kapouer@melix.org>
 Build-Depends:
  debhelper (>= 8),
  python
-Standards-Version: 3.9.4
+Standards-Version: 3.9.6
 Homepage: https://github.com/philsquared/Catch
 Vcs-Git: git://anonscm.debian.org/collab-maint/catch.git
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=collab-maint/catch.git

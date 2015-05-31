@@ -10,18 +10,17 @@
 
 #include <string>
 #include "catch_result_type.h"
-#include "catch_totals.hpp"
 #include "catch_common.h"
 
 namespace Catch {
 
     class TestCase;
-    class ExpressionResultBuilder;
     class AssertionResult;
     struct AssertionInfo;
     struct SectionInfo;
     struct MessageInfo;
     class ScopedMessageBuilder;
+    struct Counts;
 
     struct IResultCapture {
 
@@ -34,13 +33,13 @@ namespace Catch {
         virtual void pushScopedMessage( MessageInfo const& message ) = 0;
         virtual void popScopedMessage( MessageInfo const& message ) = 0;
 
-        virtual bool shouldDebugBreak() const = 0;
-
-        virtual ResultAction::Value acceptExpression( ExpressionResultBuilder const& assertionResult, AssertionInfo const& assertionInfo ) = 0;
-
         virtual std::string getCurrentTestName() const = 0;
         virtual const AssertionResult* getLastResult() const = 0;
+
+        virtual void handleFatalErrorCondition( std::string const& message ) = 0;
     };
+
+    IResultCapture& getResultCapture();
 }
 
 #endif // TWOBLUECUBES_CATCH_INTERFACES_CAPTURE_H_INCLUDED

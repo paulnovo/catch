@@ -1,10 +1,12 @@
 ![catch logo](catch-logo-small.png)
 
-*v1.0 build 10 (master branch)*
+*v1.1 build 3 (master branch)*
 
-# New release with significant changes
+Build status (on Travis CI) [![Build Status](https://travis-ci.org/philsquared/Catch.png)](https://travis-ci.org/philsquared/Catch)
 
-[Please see this page for details - including some breaking changes](docs/whats-changed.md)
+[Please see this page if you are updating from a version before 1.0](docs/whats-changed.md)
+
+<a href="https://raw.githubusercontent.com/philsquared/Catch/develop/single_include/catch.hpp">[The latest, single header, version can be downloaded directly using this link]</a>
 
 ## What's the Catch?
 
@@ -15,7 +17,7 @@ This documentation comprises these three parts:
 
 * [Why do we need yet another C++ Test Framework?](docs/why-catch.md)
 * [Tutorial](docs/tutorial.md) - getting started
-* [Reference section](docs/reference-index.md) - all the details
+* [Reference section](docs/Readme.md) - all the details
 
 The documentation will continue until morale improves
 

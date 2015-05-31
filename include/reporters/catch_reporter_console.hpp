@@ -8,7 +8,8 @@
 #ifndef TWOBLUECUBES_CATCH_REPORTER_CONSOLE_HPP_INCLUDED
 #define TWOBLUECUBES_CATCH_REPORTER_CONSOLE_HPP_INCLUDED
 
-#include "../internal/catch_interfaces_reporter.h"
+#include "catch_reporter_bases.hpp"
+
 #include "../internal/catch_reporter_registrars.hpp"
 #include "../internal/catch_console_colour.hpp"
 
@@ -17,8 +18,7 @@ namespace Catch {
     struct ConsoleReporter : StreamingReporterBase {
         ConsoleReporter( ReporterConfig const& _config )
         :   StreamingReporterBase( _config ),
-            m_headerPrinted( false ),
-            m_atLeastOneTestCasePrinted( false )
+            m_headerPrinted( false )
         {}
 
         virtual ~ConsoleReporter();
@@ -41,13 +41,18 @@ namespace Catch {
         virtual bool assertionEnded( AssertionStats const& _assertionStats ) {
             AssertionResult const& result = _assertionStats.assertionResult;
 
+            bool printInfoMessages = true;
+
             // Drop out if result was successful and we're not printing those
-            if( !m_config->includeSuccessfulResults() && result.isOk() )
-                return false;
+            if( !m_config->includeSuccessfulResults() && result.isOk() ) {
+                if( result.getResultType() != ResultWas::Warning )
+                    return false;
+                printInfoMessages = false;
+            }
 
             lazyPrint();
 
-            AssertionPrinter printer( stream, _assertionStats );
+            AssertionPrinter printer( stream, _assertionStats, printInfoMessages );
             printer.print();
             stream << std::endl;
             return true;
@@ -93,10 +98,9 @@ namespace Catch {
             StreamingReporterBase::testGroupEnded( _testGroupStats );
         }
         virtual void testRunEnded( TestRunStats const& _testRunStats ) {
-            if( m_atLeastOneTestCasePrinted )
-                printTotalsDivider();
+            printTotalsDivider( _testRunStats.totals );
             printTotals( _testRunStats.totals );
-            stream << "\n" << std::endl;
+            stream << std::endl;
             StreamingReporterBase::testRunEnded( _testRunStats );
         }
 
@@ -105,13 +109,14 @@ namespace Catch {
         class AssertionPrinter {
             void operator= ( AssertionPrinter const& );
         public:
-            AssertionPrinter( std::ostream& _stream, AssertionStats const& _stats )
+            AssertionPrinter( std::ostream& _stream, AssertionStats const& _stats, bool _printInfoMessages )
             :   stream( _stream ),
                 stats( _stats ),
                 result( _stats.assertionResult ),
                 colour( Colour::None ),
                 message( result.getMessage() ),
-                messages( _stats.infoMessages )
+                messages( _stats.infoMessages ),
+                printInfoMessages( _printInfoMessages )
             {
                 switch( result.getResultType() ) {
                     case ResultWas::Ok:
@@ -141,6 +146,11 @@ namespace Catch {
                         colour = Colour::Error;
                         passOrFail = "FAILED";
                         messageLabel = "due to unexpected exception with message";
+                        break;
+                    case ResultWas::FatalErrorCondition:
+                        colour = Colour::Error;
+                        passOrFail = "FAILED";
+                        messageLabel = "due to a fatal error condition";
                         break;
                     case ResultWas::DidntThrowException:
                         colour = Colour::Error;
@@ -214,7 +224,9 @@ namespace Catch {
                 for( std::vector<MessageInfo>::const_iterator it = messages.begin(), itEnd = messages.end();
                         it != itEnd;
                         ++it ) {
-                    stream << Text( it->message, TextAttributes().setIndent(2) ) << "\n";
+                    // If this assertion is a warning ignore any INFO messages
+                    if( printInfoMessages || it->type != ResultWas::Info )
+                        stream << Text( it->message, TextAttributes().setIndent(2) ) << "\n";
                 }
             }
             void printSourceInfo() const {
@@ -230,6 +242,7 @@ namespace Catch {
             std::string messageLabel;
             std::string message;
             std::vector<MessageInfo> messages;
+            bool printInfoMessages;
         };
 
         void lazyPrint() {
@@ -243,19 +256,21 @@ namespace Catch {
                 printTestCaseAndSectionHeader();
                 m_headerPrinted = true;
             }
-            m_atLeastOneTestCasePrinted = true;
         }
         void lazyPrintRunInfo() {
-            stream  << "\n" << getTildes() << "\n";
+            stream  << "\n" << getLineOfChars<'~'>() << "\n";
             Colour colour( Colour::SecondaryText );
             stream  << currentTestRunInfo->name
                     << " is a Catch v"  << libraryVersion.majorVersion << "."
                     << libraryVersion.minorVersion << " b"
                     << libraryVersion.buildNumber;
-            if( libraryVersion.branchName != "master" )
+            if( libraryVersion.branchName != std::string( "master" ) )
                 stream << " (" << libraryVersion.branchName << ")";
             stream  << " host application.\n"
                     << "Run with -? for options\n\n";
+
+            if( m_config->rngSeed() != 0 )
+                stream << "Randomness seeded to: " << m_config->rngSeed() << "\n\n";
 
             currentTestRunInfo.used = true;
         }
@@ -282,19 +297,19 @@ namespace Catch {
             SourceLineInfo lineInfo = m_sectionStack.front().lineInfo;
 
             if( !lineInfo.empty() ){
-                stream << getDashes() << "\n";
+                stream << getLineOfChars<'-'>() << "\n";
                 Colour colourGuard( Colour::FileName );
                 stream << lineInfo << "\n";
             }
-            stream << getDots() << "\n" << std::endl;
+            stream << getLineOfChars<'.'>() << "\n" << std::endl;
         }
 
         void printClosedHeader( std::string const& _name ) {
             printOpenHeader( _name );
-            stream << getDots() << "\n";
+            stream << getLineOfChars<'.'>() << "\n";
         }
         void printOpenHeader( std::string const& _name ) {
-            stream  << getDashes() << "\n";
+            stream  << getLineOfChars<'-'>() << "\n";
             {
                 Colour colourGuard( Colour::Headers );
                 printHeaderString( _name );
@@ -314,79 +329,123 @@ namespace Catch {
                                         .setInitialIndent( indent ) ) << "\n";
         }
 
-        void printTotals( const Totals& totals ) {
-            if( totals.assertions.total() == 0 ) {
-                stream << "No tests ran";
-            }
-            else if( totals.assertions.failed ) {
-                Colour colour( Colour::ResultError );
-                printCounts( "test case", totals.testCases );
-                if( totals.testCases.failed > 0 ) {
-                    stream << " (";
-                    printCounts( "assertion", totals.assertions );
-                    stream << ")";
+        struct SummaryColumn {
+
+            SummaryColumn( std::string const& _label, Colour::Code _colour )
+            :   label( _label ),
+                colour( _colour )
+            {}
+            SummaryColumn addRow( std::size_t count ) {
+                std::ostringstream oss;
+                oss << count;
+                std::string row = oss.str();
+                for( std::vector<std::string>::iterator it = rows.begin(); it != rows.end(); ++it ) {
+                    while( it->size() < row.size() )
+                        *it = " " + *it;
+                    while( it->size() > row.size() )
+                        row = " " + row;
                 }
+                rows.push_back( row );
+                return *this;
+            }
+
+            std::string label;
+            Colour::Code colour;
+            std::vector<std::string> rows;
+
+        };
+
+        void printTotals( Totals const& totals ) {
+            if( totals.testCases.total() == 0 ) {
+                stream << Colour( Colour::Warning ) << "No tests ran\n";
+            }
+            else if( totals.assertions.total() > 0 && totals.assertions.allPassed() ) {
+                stream << Colour( Colour::ResultSuccess ) << "All tests passed";
+                stream << " ("
+                        << pluralise( totals.assertions.passed, "assertion" ) << " in "
+                        << pluralise( totals.testCases.passed, "test case" ) << ")"
+                        << "\n";
             }
             else {
-                Colour colour( Colour::ResultSuccess );
-                stream << "All tests passed ("
-                        << pluralise( totals.assertions.passed, "assertion" ) << " in "
-                        << pluralise( totals.testCases.passed, "test case" ) << ")";
+
+                std::vector<SummaryColumn> columns;
+                columns.push_back( SummaryColumn( "", Colour::None )
+                                        .addRow( totals.testCases.total() )
+                                        .addRow( totals.assertions.total() ) );
+                columns.push_back( SummaryColumn( "passed", Colour::Success )
+                                        .addRow( totals.testCases.passed )
+                                        .addRow( totals.assertions.passed ) );
+                columns.push_back( SummaryColumn( "failed", Colour::ResultError )
+                                        .addRow( totals.testCases.failed )
+                                        .addRow( totals.assertions.failed ) );
+                columns.push_back( SummaryColumn( "failed as expected", Colour::ResultExpectedFailure )
+                                        .addRow( totals.testCases.failedButOk )
+                                        .addRow( totals.assertions.failedButOk ) );
+
+                printSummaryRow( "test cases", columns, 0 );
+                printSummaryRow( "assertions", columns, 1 );
             }
         }
-        void printCounts( std::string const& label, Counts const& counts ) {
-            if( counts.total() == 1 ) {
-                stream << "1 " << label << " - ";
-                if( counts.failed )
-                    stream << "failed";
-                else
-                    stream << "passed";
-            }
-            else {
-                stream << counts.total() << " " << label << "s ";
-                if( counts.passed ) {
-                    if( counts.failed )
-                        stream << "- " << counts.failed << " failed";
-                    else if( counts.passed == 2 )
-                        stream << "- both passed";
+        void printSummaryRow( std::string const& label, std::vector<SummaryColumn> const& cols, std::size_t row ) {
+            for( std::vector<SummaryColumn>::const_iterator it = cols.begin(); it != cols.end(); ++it ) {
+                std::string value = it->rows[row];
+                if( it->label.empty() ) {
+                    stream << label << ": ";
+                    if( value != "0" )
+                        stream << value;
                     else
-                        stream << "- all passed";
+                        stream << Colour( Colour::Warning ) << "- none -";
                 }
-                else {
-                    if( counts.failed == 2 )
-                        stream << "- both failed";
-                    else
-                        stream << "- all failed";
+                else if( value != "0" ) {
+                    stream  << Colour( Colour::LightGrey ) << " | ";
+                    stream  << Colour( it->colour )
+                            << value << " " << it->label;
                 }
             }
+            stream << "\n";
         }
 
-        void printTotalsDivider() {
-            stream << getDoubleDashes() << "\n";
+        static std::size_t makeRatio( std::size_t number, std::size_t total ) {
+            std::size_t ratio = total > 0 ? CATCH_CONFIG_CONSOLE_WIDTH * number/ total : 0;
+            return ( ratio == 0 && number > 0 ) ? 1 : ratio;
+        }
+        static std::size_t& findMax( std::size_t& i, std::size_t& j, std::size_t& k ) {
+            if( i > j && i > k )
+                return i;
+            else if( j > k )
+                return j;
+            else
+                return k;
+        }
+
+        void printTotalsDivider( Totals const& totals ) {
+            if( totals.testCases.total() > 0 ) {
+                std::size_t failedRatio = makeRatio( totals.testCases.failed, totals.testCases.total() );
+                std::size_t failedButOkRatio = makeRatio( totals.testCases.failedButOk, totals.testCases.total() );
+                std::size_t passedRatio = makeRatio( totals.testCases.passed, totals.testCases.total() );
+                while( failedRatio + failedButOkRatio + passedRatio < CATCH_CONFIG_CONSOLE_WIDTH-1 )
+                    findMax( failedRatio, failedButOkRatio, passedRatio )++;
+                while( failedRatio + failedButOkRatio + passedRatio > CATCH_CONFIG_CONSOLE_WIDTH-1 )
+                    findMax( failedRatio, failedButOkRatio, passedRatio )--;
+
+                stream << Colour( Colour::Error ) << std::string( failedRatio, '=' );
+                stream << Colour( Colour::ResultExpectedFailure ) << std::string( failedButOkRatio, '=' );
+                if( totals.testCases.allPassed() )
+                    stream << Colour( Colour::ResultSuccess ) << std::string( passedRatio, '=' );
+                else
+                    stream << Colour( Colour::Success ) << std::string( passedRatio, '=' );
+            }
+            else {
+                stream << Colour( Colour::Warning ) << std::string( CATCH_CONFIG_CONSOLE_WIDTH-1, '=' );
+            }
+            stream << "\n";
         }
         void printSummaryDivider() {
-            stream << getDashes() << "\n";
-        }
-        static std::string const& getDashes() {
-            static const std::string dashes( CATCH_CONFIG_CONSOLE_WIDTH-1, '-' );
-            return dashes;
-        }
-        static std::string const& getDots() {
-            static const std::string dots( CATCH_CONFIG_CONSOLE_WIDTH-1, '.' );
-            return dots;
-        }
-        static std::string const& getDoubleDashes() {
-            static const std::string doubleDashes( CATCH_CONFIG_CONSOLE_WIDTH-1, '=' );
-            return doubleDashes;
-        }
-        static std::string const& getTildes() {
-            static const std::string dots( CATCH_CONFIG_CONSOLE_WIDTH-1, '~' );
-            return dots;
+            stream << getLineOfChars<'-'>() << "\n";
         }
 
     private:
         bool m_headerPrinted;
-        bool m_atLeastOneTestCasePrinted;
     };
 
     INTERNAL_CATCH_REGISTER_REPORTER( "console", ConsoleReporter )

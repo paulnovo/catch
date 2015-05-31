@@ -9,11 +9,13 @@
 #ifndef TWOBLUECUBES_CATCH_STREAM_HPP_INCLUDED
 #define TWOBLUECUBES_CATCH_STREAM_HPP_INCLUDED
 
+#include "catch_stream.h"
 #include "catch_streambuf.h"
-#include "catch_debugger.hpp"
+#include "catch_debugger.h"
 
 #include <stdexcept>
 #include <cstdio>
+#include <iostream>
 
 namespace Catch {
 
@@ -27,7 +29,7 @@ namespace Catch {
             setp( data, data + sizeof(data) );
         }
 
-        ~StreamBufImpl() throw() {
+        ~StreamBufImpl() CATCH_NOEXCEPT {
             sync();
         }
 
@@ -62,29 +64,30 @@ namespace Catch {
         }
     };
 
-    class Stream {
-    public:
-        Stream()
-        : streamBuf( NULL ), isOwned( false )
-        {}
+    Stream::Stream()
+    : streamBuf( NULL ), isOwned( false )
+    {}
 
-        Stream( std::streambuf* _streamBuf, bool _isOwned )
-        : streamBuf( _streamBuf ), isOwned( _isOwned )
-        {}
+    Stream::Stream( std::streambuf* _streamBuf, bool _isOwned )
+    : streamBuf( _streamBuf ), isOwned( _isOwned )
+    {}
 
-        void release() {
-            if( isOwned ) {
-                delete streamBuf;
-                streamBuf = NULL;
-                isOwned = false;
-            }
+    void Stream::release() {
+        if( isOwned ) {
+            delete streamBuf;
+            streamBuf = NULL;
+            isOwned = false;
         }
+    }
 
-        std::streambuf* streamBuf;
-
-    private:
-        bool isOwned;
-    };
+#ifndef CATCH_CONFIG_NOSTDOUT // If you #define this you must implement this functions
+    std::ostream& cout() {
+        return std::cout;
+    }
+    std::ostream& cerr() {
+        return std::cerr;
+    }
+#endif
 }
 
 #endif // TWOBLUECUBES_CATCH_STREAM_HPP_INCLUDED

@@ -9,7 +9,7 @@
 #define TWOBLUECUBES_CATCH_EXCEPTION_TRANSLATOR_REGISTRY_HPP_INCLUDED
 
 #include "catch_interfaces_exception.h"
-#include "catch_tostring.hpp"
+#include "catch_tostring.h"
 
 #ifdef __OBJC__
 #import "Foundation/Foundation.h"
@@ -35,11 +35,14 @@ namespace Catch {
                     throw;
                 }
                 @catch (NSException *exception) {
-                    return toString( [exception description] );
+                    return Catch::toString( [exception description] );
                 }
 #else
                 throw;
 #endif
+            }
+            catch( TestFailureException& ) {
+                throw;
             }
             catch( std::exception& ex ) {
                 return ex.what();

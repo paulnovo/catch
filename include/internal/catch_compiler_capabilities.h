@@ -8,7 +8,34 @@
 #ifndef TWOBLUECUBES_CATCH_COMPILER_CAPABILITIES_HPP_INCLUDED
 #define TWOBLUECUBES_CATCH_COMPILER_CAPABILITIES_HPP_INCLUDED
 
-// Much of the following code is based on Boost (1.53)
+// Detect a number of compiler features - mostly C++11/14 conformance - by compiler
+// The following features are defined:
+//
+// CATCH_CONFIG_CPP11_NULLPTR : is nullptr supported?
+// CATCH_CONFIG_CPP11_NOEXCEPT : is noexcept supported?
+// CATCH_CONFIG_CPP11_GENERATED_METHODS : The delete and default keywords for compiler generated methods
+// CATCH_CONFIG_CPP11_IS_ENUM : std::is_enum is supported?
+// CATCH_CONFIG_CPP11_TUPLE : std::tuple is supported
+
+// CATCH_CONFIG_CPP11_OR_GREATER : Is C++11 supported?
+
+// CATCH_CONFIG_SFINAE : is basic (C++03) SFINAE supported?
+// CATCH_CONFIG_VARIADIC_MACROS : are variadic macros supported?
+
+
+// A lot of this code is based on Boost (1.53)
+
+#ifdef __clang__
+
+#  if __has_feature(cxx_nullptr)
+#    define CATCH_CONFIG_CPP11_NULLPTR
+#  endif
+
+#  if __has_feature(cxx_noexcept)
+#    define CATCH_CONFIG_CPP11_NOEXCEPT
+#  endif
+
+#endif // __clang__
 
 ////////////////////////////////////////////////////////////////////////////////
 // Borland
@@ -56,6 +83,11 @@
 
 #endif // __GNUC__ < 3
 
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6 && defined(__GXX_EXPERIMENTAL_CXX0X__) )
+
+#define CATCH_CONFIG_CPP11_NULLPTR
+#endif
+
 
 #endif // __GNUC__
 
@@ -65,6 +97,15 @@
 
 #if (_MSC_VER >= 1310 ) // (VC++ 7.0+)
 //#define CATCH_CONFIG_SFINAE // Not confirmed
+#endif
+
+#if (_MSC_VER >= 1600)
+#define CATCH_CONFIG_CPP11_NULLPTR
+#endif
+
+#if (_MSC_VER >= 1900 ) // (VC++ 13 (VS2015))
+#define CATCH_CONFIG_CPP11_NOEXCEPT
+#define CATCH_CONFIG_CPP11_GENERATED_METHODS
 #endif
 
 #endif // _MSC_VER
@@ -79,6 +120,53 @@
 #define CATCH_CONFIG_VARIADIC_MACROS
 #endif
 
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+// C++ language feature support
+
+// catch all support for C++11
+#if (__cplusplus >= 201103L)
+
+#  define CATCH_CPP11_OR_GREATER
+
+#  ifndef CATCH_CONFIG_CPP11_NULLPTR
+#    define CATCH_CONFIG_CPP11_NULLPTR
+#  endif
+
+#  ifndef CATCH_CONFIG_CPP11_NOEXCEPT
+#    define CATCH_CONFIG_CPP11_NOEXCEPT
+#  endif
+
+#  ifndef CATCH_CONFIG_CPP11_GENERATED_METHODS
+#    define CATCH_CONFIG_CPP11_GENERATED_METHODS
+#  endif
+
+#  ifndef CATCH_CONFIG_CPP11_IS_ENUM
+#    define CATCH_CONFIG_CPP11_IS_ENUM
+#  endif
+
+#  ifndef CATCH_CONFIG_CPP11_TUPLE
+#    define CATCH_CONFIG_CPP11_TUPLE
+#  endif
+
+#  ifndef CATCH_CONFIG_SFINAE
+//#    define CATCH_CONFIG_SFINAE // Don't use, for now
+#  endif
+
+#  ifndef CATCH_CONFIG_VARIADIC_MACROS
+#    define CATCH_CONFIG_VARIADIC_MACROS
+#  endif
+
+#endif // __cplusplus >= 201103L
+
+// noexcept support:
+#if defined(CATCH_CONFIG_CPP11_NOEXCEPT) && !defined(CATCH_NOEXCEPT)
+#  define CATCH_NOEXCEPT noexcept
+#  define CATCH_NOEXCEPT_IS(x) noexcept(x)
+#else
+#  define CATCH_NOEXCEPT throw()
+#  define CATCH_NOEXCEPT_IS(x)
 #endif
 
 #endif // TWOBLUECUBES_CATCH_COMPILER_CAPABILITIES_HPP_INCLUDED

@@ -10,7 +10,9 @@
 
 #include "catch_config.hpp"
 #include "catch_common.h"
-#include "clara.h"
+#include "catch_clara.h"
+
+#include <fstream>
 
 namespace Catch {
 
@@ -24,114 +26,153 @@ namespace Catch {
 
     inline void addWarning( ConfigData& config, std::string const& _warning ) {
         if( _warning == "NoAssertions" )
-            config.warnings = (WarnAbout::What)( config.warnings | WarnAbout::NoAssertions );
+            config.warnings = static_cast<WarnAbout::What>( config.warnings | WarnAbout::NoAssertions );
         else
             throw std::runtime_error( "Unrecognised warning: '" + _warning + "'" );
-
+    }
+    inline void setOrder( ConfigData& config, std::string const& order ) {
+        if( startsWith( "declared", order ) )
+            config.runOrder = RunTests::InDeclarationOrder;
+        else if( startsWith( "lexical", order ) )
+            config.runOrder = RunTests::InLexicographicalOrder;
+        else if( startsWith( "random", order ) )
+            config.runOrder = RunTests::InRandomOrder;
+        else
+            throw std::runtime_error( "Unrecognised ordering: '" + order + "'" );
+    }
+    inline void setRngSeed( ConfigData& config, std::string const& seed ) {
+        if( seed == "time" ) {
+            config.rngSeed = static_cast<unsigned int>( std::time(0) );
+        }
+        else {
+            std::stringstream ss;
+            ss << seed;
+            ss >> config.rngSeed;
+            if( ss.fail() )
+                throw std::runtime_error( "Argment to --rng-seed should be the word 'time' or a number" );
+        }
     }
     inline void setVerbosity( ConfigData& config, int level ) {
         // !TBD: accept strings?
-        config.verbosity = (Verbosity::Level)level;
+        config.verbosity = static_cast<Verbosity::Level>( level );
     }
     inline void setShowDurations( ConfigData& config, bool _showDurations ) {
         config.showDurations = _showDurations
             ? ShowDurations::Always
             : ShowDurations::Never;
     }
-    
+    inline void loadTestNamesFromFile( ConfigData& config, std::string const& _filename ) {
+        std::ifstream f( _filename.c_str() );
+        if( !f.is_open() )
+            throw std::domain_error( "Unable to load input file: " + _filename );
+
+        std::string line;
+        while( std::getline( f, line ) ) {
+            line = trim(line);
+            if( !line.empty() && !startsWith( line, "#" ) )
+                addTestOrTags( config, "\"" + line + "\"," );
+        }
+    }
 
     inline Clara::CommandLine<ConfigData> makeCommandLineParser() {
 
-        Clara::CommandLine<ConfigData> cli;
+        using namespace Clara;
+        CommandLine<ConfigData> cli;
 
         cli.bindProcessName( &ConfigData::processName );
 
-        cli.bind( &ConfigData::showHelp )
+        cli["-?"]["-h"]["--help"]
             .describe( "display usage information" )
-            .shortOpt( "?")
-            .shortOpt( "h")
-            .longOpt( "help" );
+            .bind( &ConfigData::showHelp );
 
-        cli.bind( &ConfigData::listTests )
-            .describe( "list all (or matching) test cases" )
-            .shortOpt( "l")
-            .longOpt( "list-tests" );
+        cli["-l"]["--list-tests"]
+            .describe( "list all/matching test cases" )
+            .bind( &ConfigData::listTests );
 
-        cli.bind( &ConfigData::listTags )
-            .describe( "list all (or matching) tags" )
-            .shortOpt( "t")
-            .longOpt( "list-tags" );
+        cli["-t"]["--list-tags"]
+            .describe( "list all/matching tags" )
+            .bind( &ConfigData::listTags );
 
-        cli.bind( &ConfigData::listReporters )
-            .describe( "list all reporters" )
-            .longOpt( "list-reporters" );
-
-        cli.bind( &ConfigData::showSuccessfulTests )
+        cli["-s"]["--success"]
             .describe( "include successful tests in output" )
-            .shortOpt( "s")
-            .longOpt( "success" );
+            .bind( &ConfigData::showSuccessfulTests );
 
-        cli.bind( &ConfigData::shouldDebugBreak )
+        cli["-b"]["--break"]
             .describe( "break into debugger on failure" )
-            .shortOpt( "b")
-            .longOpt( "break" );
+            .bind( &ConfigData::shouldDebugBreak );
 
-        cli.bind( &ConfigData::noThrow )
+        cli["-e"]["--nothrow"]
             .describe( "skip exception tests" )
-            .shortOpt( "e")
-            .longOpt( "nothrow" );
+            .bind( &ConfigData::noThrow );
 
-        cli.bind( &ConfigData::outputFilename )
+        cli["-i"]["--invisibles"]
+            .describe( "show invisibles (tabs, newlines)" )
+            .bind( &ConfigData::showInvisibles );
+
+        cli["-o"]["--out"]
             .describe( "output filename" )
-            .shortOpt( "o")
-            .longOpt( "out" )
-            .hint( "filename" );
+            .bind( &ConfigData::outputFilename, "filename" );
 
-        cli.bind( &ConfigData::reporterName )
-            .describe( "reporter to use - defaults to console" )
-            .shortOpt( "r")
-            .longOpt( "reporter" )
-//            .hint( "name[:filename]" );
-            .hint( "name" );
+        cli["-r"]["--reporter"]
+//            .placeholder( "name[:filename]" )
+            .describe( "reporter to use (defaults to console)" )
+            .bind( &ConfigData::reporterName, "name" );
 
-        cli.bind( &ConfigData::name )
+        cli["-n"]["--name"]
             .describe( "suite name" )
-            .shortOpt( "n")
-            .longOpt( "name" )
-            .hint( "name" );
+            .bind( &ConfigData::name, "name" );
 
-        cli.bind( &abortAfterFirst )
+        cli["-a"]["--abort"]
             .describe( "abort at first failure" )
-            .shortOpt( "a")
-            .longOpt( "abort" );
+            .bind( &abortAfterFirst );
 
-        cli.bind( &abortAfterX )
+        cli["-x"]["--abortx"]
             .describe( "abort after x failures" )
-            .shortOpt( "x")
-            .longOpt( "abortx" )
-            .hint( "number of failures" );
+            .bind( &abortAfterX, "no. failures" );
 
-        cli.bind( &addWarning )
+        cli["-w"]["--warn"]
             .describe( "enable warnings" )
-            .shortOpt( "w")
-            .longOpt( "warn" )
-            .hint( "warning name" );
+            .bind( &addWarning, "warning name" );
 
-//        cli.bind( &setVerbosity )
+// - needs updating if reinstated
+//        cli.into( &setVerbosity )
 //            .describe( "level of verbosity (0=no output)" )
 //            .shortOpt( "v")
 //            .longOpt( "verbosity" )
-//            .hint( "level" );
+//            .placeholder( "level" );
 
-        cli.bind( &addTestOrTags )
+        cli[_]
             .describe( "which test or tests to use" )
-            .hint( "test name, pattern or tags" );
+            .bind( &addTestOrTags, "test name, pattern or tags" );
 
-        cli.bind( &setShowDurations )
+        cli["-d"]["--durations"]
             .describe( "show test durations" )
-            .shortOpt( "d")
-            .longOpt( "durations" )
-            .hint( "yes/no" );
+            .bind( &setShowDurations, "yes/no" );
+
+        cli["-f"]["--input-file"]
+            .describe( "load test names to run from a file" )
+            .bind( &loadTestNamesFromFile, "filename" );
+
+        // Less common commands which don't have a short form
+        cli["--list-test-names-only"]
+            .describe( "list all/matching test cases names only" )
+            .bind( &ConfigData::listTestNamesOnly );
+
+        cli["--list-reporters"] 
+            .describe( "list all reporters" )
+            .bind( &ConfigData::listReporters );
+
+        cli["--order"]
+            .describe( "test case order (defaults to decl)" )
+            .bind( &setOrder, "decl|lex|rand" );
+
+        cli["--rng-seed"]
+            .describe( "set a specific seed for random numbers" )
+            .bind( &setRngSeed, "'time'|number" );
+
+        cli["--force-colour"]
+            .describe( "force colourised output" )
+            .bind( &ConfigData::forceColour );
 
         return cli;
     }

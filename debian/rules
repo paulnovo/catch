@@ -4,8 +4,7 @@
 #export DH_VERBOSE=1
 
 upstreamVersion := $(shell dpkg-parsechangelog -SVersion | cut -d- -f1)
-upstreamBuild := $(shell echo $(upstreamVersion) | grep -oP '(?<=\+m)\d+(?=git\w+)')
-upstreamHash := $(shell echo $(upstreamVersion) | grep -oP '(?<=\+m$(upstreamBuild)git)\w+')
+upstreamHash := $(shell echo $(upstreamVersion) | grep -oP '(?<=\+git)\w+')
 upstreamUrl := $(shell grep -oP "(?<=Homepage: )(.+)" $(CURDIR)/debian/control)
 upstreamName := $(shell dpkg-parsechangelog -SSource)
 
@@ -24,5 +23,5 @@ override_dh_clean:
 	dh_clean
 
 get-orig-source:
-	wget -O - $(upstreamUrl)/archive/$(upstreamHash).tar.gz > $(upstreamName)_$(upstreamVersion).orig.tar.gz
+	wget -O - $(upstreamUrl)/archive/$(upstreamHash).tar.gz > ../$(upstreamName)_$(upstreamVersion).orig.tar.gz
 

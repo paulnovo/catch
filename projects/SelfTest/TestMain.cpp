@@ -5,72 +5,25 @@
  *  Distributed under the Boost Software License, Version 1.0. (See accompanying
  *  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
  */
+
+#define CATCH_CONFIG_MAIN
+#include "catch.hpp"
+#include "reporters/catch_reporter_teamcity.hpp"
+
+// Some example tag aliases
+CATCH_REGISTER_TAG_ALIAS( "[@nhf]", "[failing]~[.]" )
+CATCH_REGISTER_TAG_ALIAS( "[@tricky]", "[tricky]~[.]" )
+
+
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wpadded"
-#endif
-
-#include "catch_self_test.hpp"
-#include "internal/catch_text.h"
-#include "internal/catch_console_colour.hpp"
-
-TEST_CASE( "selftest/main", "Runs all Catch self tests and checks their results" ) {
-    using namespace Catch;
-
-    ///////////////////////////////////////////////////////////////////////////
-    SECTION(    "selftest/expected result",
-                "Tests do what they claim" ) {
-                
-        SECTION(    "selftest/expected result/failing tests", 
-                    "Tests in the 'failing' branch fail" ) {
-            MetaTestRunner::runMatching( "./failing/*",  MetaTestRunner::Expected::ToFail, 0, 2 );
-        }
-        
-        SECTION(    "selftest/expected result/succeeding tests", 
-                    "Tests in the 'succeeding' branch succeed" ) {
-            MetaTestRunner::runMatching( "./succeeding/*",  MetaTestRunner::Expected::ToSucceed, 1, 2 );
-        }
-    }
-
-    ///////////////////////////////////////////////////////////////////////////
-    SECTION(    "selftest/test counts", 
-                "Number of test cases that run is fixed" ) {
-        EmbeddedRunner runner;
-        
-        SECTION(    "selftest/test counts/succeeding tests", 
-                    "Number of 'succeeding' tests is fixed" ) {
-            Totals totals = runner.runMatching( "./succeeding/*", 0, 2 );
-            CHECK( totals.assertions.passed == 298 );
-            CHECK( totals.assertions.failed == 0 );
-        }
-
-        SECTION(    "selftest/test counts/failing tests", 
-                    "Number of 'failing' tests is fixed" ) {
-            Totals totals = runner.runMatching( "./failing/*", 1, 2 );
-            CHECK( totals.assertions.passed == 2 );
-            CHECK( totals.assertions.failed == 77 );
-        }
-    }
-}
-
-TEST_CASE( "meta/Misc/Sections", "looped tests" ) {
-    Catch::EmbeddedRunner runner;
-    
-    Catch::Totals totals = runner.runMatching( "./mixed/Misc/Sections/nested2", 0, 1 );
-    CHECK( totals.assertions.passed == 2 );
-    CHECK( totals.assertions.failed == 1 );
-}
-
-#ifdef __clang__
 #pragma clang diagnostic ignored "-Wweak-vtables"
 #endif
 
-#include "../../include/internal/catch_commandline.hpp"
-#include "../../include/internal/catch_test_spec.h"
-#include "../../include/reporters/catch_reporter_xml.hpp"
 
 template<size_t size>
 void parseIntoConfig( const char * (&argv)[size], Catch::ConfigData& config ) {
-    Clara::CommandLine<Catch::ConfigData> parser = Catch::makeCommandLineParser();
+    Catch::Clara::CommandLine<Catch::ConfigData> parser = Catch::makeCommandLineParser();
     parser.parseInto( size, argv, config );
 }
 
@@ -86,7 +39,7 @@ std::string parseIntoConfigAndReturnError( const char * (&argv)[size], Catch::Co
     return "";
 }
 
-inline Catch::TestCase fakeTestCase( const char* name ){ return Catch::makeTestCase( NULL, "", name, "", CATCH_INTERNAL_LINEINFO ); }
+inline Catch::TestCase fakeTestCase( const char* name, const char* desc = "" ){ return Catch::makeTestCase( NULL, "", name, desc, CATCH_INTERNAL_LINEINFO ); }
 
 TEST_CASE( "Process can be configured on command line", "[config][command-line]" ) {
 
@@ -108,18 +61,16 @@ TEST_CASE( "Process can be configured on command line", "[config][command-line]"
             CHECK_NOTHROW( parseIntoConfig( argv, config ) );
 
             Catch::Config cfg( config );
-            REQUIRE( cfg.filters().size() == 1 );
-            REQUIRE( cfg.filters()[0].shouldInclude( fakeTestCase( "notIncluded" ) ) == false );
-            REQUIRE( cfg.filters()[0].shouldInclude( fakeTestCase( "test1" ) ) );
+            REQUIRE( cfg.testSpec().matches( fakeTestCase( "notIncluded" ) ) == false );
+            REQUIRE( cfg.testSpec().matches( fakeTestCase( "test1" ) ) );
         }
         SECTION( "Specify one test case exclusion using exclude:", "" ) {
             const char* argv[] = { "test", "exclude:test1" };
             CHECK_NOTHROW( parseIntoConfig( argv, config ) );
 
             Catch::Config cfg( config );
-            REQUIRE( cfg.filters().size() == 1 );
-            REQUIRE( cfg.filters()[0].shouldInclude( fakeTestCase( "test1" ) ) == false );
-            REQUIRE( cfg.filters()[0].shouldInclude( fakeTestCase( "alwaysIncluded" ) ) );
+            REQUIRE( cfg.testSpec().matches( fakeTestCase( "test1" ) ) == false );
+            REQUIRE( cfg.testSpec().matches( fakeTestCase( "alwaysIncluded" ) ) );
         }
 
         SECTION( "Specify one test case exclusion using ~", "" ) {
@@ -127,21 +78,10 @@ TEST_CASE( "Process can be configured on command line", "[config][command-line]"
             CHECK_NOTHROW( parseIntoConfig( argv, config ) );
 
             Catch::Config cfg( config );
-            REQUIRE( cfg.filters().size() == 1 );
-            REQUIRE( cfg.filters()[0].shouldInclude( fakeTestCase( "test1" ) ) == false );
-            REQUIRE( cfg.filters()[0].shouldInclude( fakeTestCase( "alwaysIncluded" ) ) );
+            REQUIRE( cfg.testSpec().matches( fakeTestCase( "test1" ) ) == false );
+            REQUIRE( cfg.testSpec().matches( fakeTestCase( "alwaysIncluded" ) ) );
         }
-        
-        SECTION( "Specify two test cases using -t", "" ) {
-            const char* argv[] = { "test", "-t", "test1", "test2" };
-            CHECK_NOTHROW( parseIntoConfig( argv, config ) );
 
-            Catch::Config cfg( config );
-            REQUIRE( cfg.filters().size() == 1 );
-            REQUIRE( cfg.filters()[0].shouldInclude( fakeTestCase( "notIncluded" ) ) == false );
-            REQUIRE( cfg.filters()[0].shouldInclude( fakeTestCase( "test1" ) ) );
-            REQUIRE( cfg.filters()[0].shouldInclude( fakeTestCase( "test2" ) ) );
-        }
     }
     
     SECTION( "reporter", "" ) {
@@ -242,130 +182,25 @@ TEST_CASE( "Process can be configured on command line", "[config][command-line]"
             CHECK( config.shouldDebugBreak );
             CHECK( config.noThrow == true );
         }
-    }        
-}
-
-TEST_CASE( "selftest/test filter", "Individual filters" ) {
-
-    Catch::TestCaseFilter matchAny( "*" );
-    Catch::TestCaseFilter matchNone( "*", Catch::IfFilterMatches::ExcludeTests );
-    CHECK( matchAny.shouldInclude( fakeTestCase( "any" ) ));
-    CHECK( matchNone.shouldInclude( fakeTestCase( "any" ) ) == false );
-
-    Catch::TestCaseFilter matchHidden( "./*" );
-    Catch::TestCaseFilter matchNonHidden( "./*", Catch::IfFilterMatches::ExcludeTests );
-
-    CHECK( matchHidden.shouldInclude( fakeTestCase( "any" ) ) == false );
-    CHECK( matchNonHidden.shouldInclude( fakeTestCase( "any" ) ) );
-
-    CHECK( matchHidden.shouldInclude( fakeTestCase( "./any" ) ) );
-    CHECK( matchNonHidden.shouldInclude( fakeTestCase( "./any" ) ) == false );
-}
-
-TEST_CASE( "selftest/test filters", "Sets of filters" ) {
-
-    Catch::TestCaseFilter matchHidden( "./*" );
-    Catch::TestCaseFilter dontMatchA( "./a*", Catch::IfFilterMatches::ExcludeTests );
-    Catch::TestCaseFilters filters( "" );
-    filters.addFilter( matchHidden );
-    filters.addFilter( dontMatchA );
-
-    CHECK( matchHidden.shouldInclude( fakeTestCase( "./something" ) ) );
-
-    CHECK( filters.shouldInclude( fakeTestCase( "any" ) ) == false );
-    CHECK( filters.shouldInclude( fakeTestCase( "./something" ) ) );
-    CHECK( filters.shouldInclude( fakeTestCase( "./anything" ) ) == false );
-}
-
-TEST_CASE( "selftest/filter/prefix wildcard", "Individual filters with wildcards at the start" ) {
-    Catch::TestCaseFilter matchBadgers( "*badger" );
-
-    CHECK( matchBadgers.shouldInclude( fakeTestCase( "big badger" ) ));
-    CHECK( matchBadgers.shouldInclude( fakeTestCase( "little badgers" ) ) == false );
-}
-TEST_CASE( "selftest/filter/wildcard at both ends", "Individual filters with wildcards at both ends" ) {
-    Catch::TestCaseFilter matchBadgers( "*badger*" );
-
-    CHECK( matchBadgers.shouldInclude( fakeTestCase( "big badger" ) ));
-    CHECK( matchBadgers.shouldInclude( fakeTestCase( "little badgers" ) ) );
-    CHECK( matchBadgers.shouldInclude( fakeTestCase( "badgers are big" ) ) );
-    CHECK( matchBadgers.shouldInclude( fakeTestCase( "hedgehogs" ) ) == false );
-}
-
-
-template<size_t size>
-int getArgc( const char * (&)[size] ) {
-    return size;
-}
-
-TEST_CASE( "selftest/tags", "" ) {
-
-    std::string p1 = "[one]";
-    std::string p2 = "[one],[two]";
-    std::string p3 = "[one][two]";
-    std::string p4 = "[one][two],[three]";
-    std::string p5 = "[one][two]~[.],[three]";
-    
-    SECTION( "one tag", "" ) {
-        Catch::TestCase oneTag = makeTestCase( NULL, "", "test", "[one]", CATCH_INTERNAL_LINEINFO );
-
-        CHECK( oneTag.getTestCaseInfo().description == "" );
-        CHECK( oneTag.hasTag( "one" ) );
-        CHECK( oneTag.getTags().size() == 1 );
-
-        CHECK( oneTag.matchesTags( p1 ) == true );
-        CHECK( oneTag.matchesTags( p2 ) == true );
-        CHECK( oneTag.matchesTags( p3 ) == false );
-        CHECK( oneTag.matchesTags( p4 ) == false );
-        CHECK( oneTag.matchesTags( p5 ) == false );
     }
 
-    SECTION( "two tags", "" ) {
-        Catch::TestCase twoTags= makeTestCase( NULL, "", "test", "[one][two]", CATCH_INTERNAL_LINEINFO );
+    SECTION( "force-colour", "") {
+        SECTION( "--force-colour", "" ) {
+            const char* argv[] = { "test", "--force-colour" };
+            CHECK_NOTHROW( parseIntoConfig( argv, config ) );
 
-        CHECK( twoTags.getTestCaseInfo().description == "" );
-        CHECK( twoTags.hasTag( "one" ) );
-        CHECK( twoTags.hasTag( "two" ) );
-        CHECK( twoTags.hasTag( "Two" ) );
-        CHECK( twoTags.hasTag( "three" ) == false );
-        CHECK( twoTags.getTags().size() == 2 );
+            REQUIRE( config.forceColour );
+        }
 
-        CHECK( twoTags.matchesTags( p1 ) == true );
-        CHECK( twoTags.matchesTags( p2 ) == true );
-        CHECK( twoTags.matchesTags( p3 ) == true );
-        CHECK( twoTags.matchesTags( p4 ) == true );
-        CHECK( twoTags.matchesTags( p5 ) == true );
-    }
+        SECTION( "without --force-colour", "" ) {
+            const char* argv[] = { "test" };
+            CHECK_NOTHROW( parseIntoConfig( argv, config ) );
 
-    SECTION( "one tag with characters either side", "" ) {
-
-        Catch::TestCase oneTagWithExtras = makeTestCase( NULL, "", "test", "12[one]34", CATCH_INTERNAL_LINEINFO );
-        CHECK( oneTagWithExtras.getTestCaseInfo().description == "1234" );
-        CHECK( oneTagWithExtras.hasTag( "one" ) );
-        CHECK( oneTagWithExtras.hasTag( "two" ) == false );
-        CHECK( oneTagWithExtras.getTags().size() == 1 );
-    }
-    
-    SECTION( "start of a tag, but not closed", "" ) {
-
-        Catch::TestCase oneTagOpen = makeTestCase( NULL, "", "test", "[one", CATCH_INTERNAL_LINEINFO );
-
-        CHECK( oneTagOpen.getTestCaseInfo().description == "[one" );
-        CHECK( oneTagOpen.hasTag( "one" ) == false );
-        CHECK( oneTagOpen.getTags().size() == 0 );
-    }
-
-    SECTION( "hidden", "" ) {
-        Catch::TestCase oneTag = makeTestCase( NULL, "", "test", "[.]", CATCH_INTERNAL_LINEINFO );
-
-        CHECK( oneTag.getTestCaseInfo().description == "" );
-        CHECK( oneTag.hasTag( "." ) );
-        CHECK( oneTag.isHidden() );
-
-        CHECK( oneTag.matchesTags( "~[.]" ) == false );
-
+            REQUIRE( !config.forceColour );
+        }
     }
 }
+
 
 TEST_CASE( "Long strings can be wrapped", "[wrap]" ) {
 
@@ -529,22 +364,55 @@ private:
     std::vector<ColourIndex> colours;
 };
 
+TEST_CASE( "replaceInPlace", "" ) {
+    std::string letters = "abcdefcg";
+    SECTION( "replace single char" ) {
+        CHECK( replaceInPlace( letters, "b", "z" ) );
+        CHECK( letters == "azcdefcg" );
+    }
+    SECTION( "replace two chars" ) {
+        CHECK( replaceInPlace( letters, "c", "z" ) );
+        CHECK( letters == "abzdefzg" );
+    }
+    SECTION( "replace first char" ) {
+        CHECK( replaceInPlace( letters, "a", "z" ) );
+        CHECK( letters == "zbcdefcg" );
+    }
+    SECTION( "replace last char" ) {
+        CHECK( replaceInPlace( letters, "g", "z" ) );
+        CHECK( letters == "abcdefcz" );
+    }
+    SECTION( "replace all chars" ) {
+        CHECK( replaceInPlace( letters, letters, "replaced" ) );
+        CHECK( letters == "replaced" );
+    }
+    SECTION( "replace no chars" ) {
+        CHECK_FALSE( replaceInPlace( letters, "x", "z" ) );
+        CHECK( letters == letters );
+    }
+    SECTION( "escape '" ) {
+        std::string s = "didn't";
+        CHECK( replaceInPlace( s, "'", "|'" ) );
+        CHECK( s == "didn|'t" );
+    }
+}
+
 // !TBD: This will be folded into Text class
-TEST_CASE( "Strings can be rendered with colour", "[colour]" ) {
+TEST_CASE( "Strings can be rendered with colour", "[.colour]" ) {
     
     {
         ColourString cs( "hello" );
         cs  .addColour( Colour::Red, 0 )
             .addColour( Colour::Green, -1 );
 
-        std::cout << cs << std::endl;
+        Catch::cout() << cs << std::endl;
     }
 
     {
         ColourString cs( "hello" );
         cs  .addColour( Colour::Blue, 1, -2 );
         
-        std::cout << cs << std::endl;
+        Catch::cout() << cs << std::endl;
     }
     
 }
@@ -557,4 +425,16 @@ TEST_CASE( "Text can be formatted using the Text class", "" ) {
     narrow.setWidth( 6 );
     
     CHECK( Text( "hi there", narrow ).toString() == "hi\nthere" );
+}
+
+TEST_CASE( "Long text is truncted", "[Text][Truncated]" ) {
+
+    std::string longLine( 90, '*' );
+
+    std::ostringstream oss;
+    for(int i = 0; i < 600; ++i )
+        oss << longLine << longLine << "\n";
+    Text t( oss.str() );
+    CHECK_THAT( t.toString(), EndsWith( "... message truncated due to excessive size" ) );
+    
 }

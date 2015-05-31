@@ -8,8 +8,9 @@
 #ifndef TWOBLUECUBES_CATCH_REPORTER_JUNIT_HPP_INCLUDED
 #define TWOBLUECUBES_CATCH_REPORTER_JUNIT_HPP_INCLUDED
 
-#include "../internal/catch_tostring.hpp"
-#include "../internal/catch_interfaces_reporter.h"
+#include "catch_reporter_bases.hpp"
+
+#include "../internal/catch_tostring.h"
 #include "../internal/catch_reporter_registrars.hpp"
 #include "../internal/catch_xmlwriter.hpp"
 
@@ -69,7 +70,7 @@ namespace Catch {
             writeGroup( *m_testGroups.back(), suiteTime );
         }
 
-        virtual void testRunEnded() {
+        virtual void testRunEndedCumulative() {
             xml.endElement();
         }
 
@@ -134,7 +135,7 @@ namespace Catch {
                     xml.writeAttribute( "classname", className );
                     xml.writeAttribute( "name", name );
                 }
-                xml.writeAttribute( "time", toString( sectionNode.stats.durationInSeconds ) );
+                xml.writeAttribute( "time", Catch::toString( sectionNode.stats.durationInSeconds ) );
 
                 writeAssertions( sectionNode );
 
@@ -167,6 +168,7 @@ namespace Catch {
                 std::string elementName;
                 switch( result.getResultType() ) {
                     case ResultWas::ThrewException:
+                    case ResultWas::FatalErrorCondition:
                         elementName = "error";
                         break;
                     case ResultWas::ExplicitFailure:

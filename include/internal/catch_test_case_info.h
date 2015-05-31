@@ -24,25 +24,38 @@ namespace Catch {
     struct ITestCase;
 
     struct TestCaseInfo {
+        enum SpecialProperties{
+            None = 0,
+            IsHidden = 1 << 1,
+            ShouldFail = 1 << 2,
+            MayFail = 1 << 3,
+            Throws = 1 << 4
+        };
+        
         TestCaseInfo(   std::string const& _name,
                         std::string const& _className,
                         std::string const& _description,
                         std::set<std::string> const& _tags,
-                        bool _isHidden,
                         SourceLineInfo const& _lineInfo );
 
         TestCaseInfo( TestCaseInfo const& other );
+
+        bool isHidden() const;
+        bool throws() const;
+        bool okToFail() const;
+        bool expectedToFail() const;
 
         std::string name;
         std::string className;
         std::string description;
         std::set<std::string> tags;
+        std::set<std::string> lcaseTags;
         std::string tagsAsString;
         SourceLineInfo lineInfo;
-        bool isHidden;
+        SpecialProperties properties;
     };
 
-    class TestCase : protected TestCaseInfo {
+    class TestCase : public TestCaseInfo {
     public:
 
         TestCase( ITestCase* testCase, TestCaseInfo const& info );
@@ -53,11 +66,6 @@ namespace Catch {
         void invoke() const;
 
         TestCaseInfo const& getTestCaseInfo() const;
-
-        bool isHidden() const;
-        bool hasTag( std::string const& tag ) const;
-        bool matchesTags( std::string const& tagPattern ) const;
-        std::set<std::string> const& getTags() const;
 
         void swap( TestCase& other );
         bool operator == ( TestCase const& other ) const;

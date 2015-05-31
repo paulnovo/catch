@@ -10,23 +10,35 @@
 #define TWOBLUECUBES_CATCH_HPP_INCLUDED
 
 #ifdef __clang__
-#pragma clang diagnostic ignored "-Wglobal-constructors"
-#pragma clang diagnostic ignored "-Wvariadic-macros"
+#    pragma clang system_header
+#elif defined __GNUC__
+#    pragma GCC system_header
+#endif
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wpadded"
+#include "internal/catch_suppress_warnings.h"
+
+#if defined(CATCH_CONFIG_MAIN) || defined(CATCH_CONFIG_RUNNER)
+#  define CATCH_IMPL
+#endif
+
+#ifdef CATCH_IMPL
+#  ifndef CLARA_CONFIG_MAIN
+#    define CLARA_CONFIG_MAIN_NOT_DEFINED
+#    define CLARA_CONFIG_MAIN
+#  endif
 #endif
 
 #include "internal/catch_notimplemented_exception.h"
 #include "internal/catch_context.h"
 #include "internal/catch_test_registry.hpp"
 #include "internal/catch_capture.hpp"
-#include "internal/catch_section.hpp"
+#include "internal/catch_section.h"
 #include "internal/catch_generators.hpp"
 #include "internal/catch_interfaces_exception.h"
 #include "internal/catch_approx.hpp"
 #include "internal/catch_matchers.hpp"
 #include "internal/catch_compiler_capabilities.h"
+#include "internal/catch_interfaces_tag_alias_registry.h"
 
 // These files are included here so the single_include script doesn't put them
 // in the conditionally compiled sections
@@ -37,12 +49,17 @@
 #include "internal/catch_objc.hpp"
 #endif
 
-#if defined( CATCH_CONFIG_MAIN ) || defined( CATCH_CONFIG_RUNNER )
+#ifdef CATCH_IMPL
 #include "internal/catch_impl.hpp"
 #endif
 
 #ifdef CATCH_CONFIG_MAIN
 #include "internal/catch_default_main.hpp"
+#endif
+
+
+#ifdef CLARA_CONFIG_MAIN_NOT_DEFINED
+#  undef CLARA_CONFIG_MAIN
 #endif
 
 //////
@@ -51,19 +68,19 @@
 #ifdef CATCH_CONFIG_PREFIX_ALL
 
 #define CATCH_REQUIRE( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::Normal, "CATCH_REQUIRE" )
-#define CATCH_REQUIRE_FALSE( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::Normal | Catch::ResultDisposition::NegateResult, "CATCH_REQUIRE_FALSE" )
+#define CATCH_REQUIRE_FALSE( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::Normal | Catch::ResultDisposition::FalseTest, "CATCH_REQUIRE_FALSE" )
 
-#define CATCH_REQUIRE_THROWS( expr ) INTERNAL_CATCH_THROWS( expr, ..., Catch::ResultDisposition::Normal, "CATCH_REQUIRE_THROWS" )
+#define CATCH_REQUIRE_THROWS( expr ) INTERNAL_CATCH_THROWS( expr, Catch::ResultDisposition::Normal, "CATCH_REQUIRE_THROWS" )
 #define CATCH_REQUIRE_THROWS_AS( expr, exceptionType ) INTERNAL_CATCH_THROWS_AS( expr, exceptionType, Catch::ResultDisposition::Normal, "CATCH_REQUIRE_THROWS_AS" )
 #define CATCH_REQUIRE_NOTHROW( expr ) INTERNAL_CATCH_NO_THROW( expr, Catch::ResultDisposition::Normal, "CATCH_REQUIRE_NOTHROW" )
 
 #define CATCH_CHECK( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::ContinueOnFailure, "CATCH_CHECK" )
-#define CATCH_CHECK_FALSE( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::ContinueOnFailure | Catch::ResultDisposition::NegateResult, "CATCH_CHECK_FALSE" )
+#define CATCH_CHECK_FALSE( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::ContinueOnFailure | Catch::ResultDisposition::FalseTest, "CATCH_CHECK_FALSE" )
 #define CATCH_CHECKED_IF( expr ) INTERNAL_CATCH_IF( expr, Catch::ResultDisposition::ContinueOnFailure, "CATCH_CHECKED_IF" )
 #define CATCH_CHECKED_ELSE( expr ) INTERNAL_CATCH_ELSE( expr, Catch::ResultDisposition::ContinueOnFailure, "CATCH_CHECKED_ELSE" )
 #define CATCH_CHECK_NOFAIL( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::ContinueOnFailure | Catch::ResultDisposition::SuppressFail, "CATCH_CHECK_NOFAIL" )
 
-#define CATCH_CHECK_THROWS( expr )  INTERNAL_CATCH_THROWS( expr, ..., Catch::ResultDisposition::ContinueOnFailure, "CATCH_CHECK_THROWS" )
+#define CATCH_CHECK_THROWS( expr )  INTERNAL_CATCH_THROWS( expr, Catch::ResultDisposition::ContinueOnFailure, "CATCH_CHECK_THROWS" )
 #define CATCH_CHECK_THROWS_AS( expr, exceptionType ) INTERNAL_CATCH_THROWS_AS( expr, exceptionType, Catch::ResultDisposition::ContinueOnFailure, "CATCH_CHECK_THROWS_AS" )
 #define CATCH_CHECK_NOTHROW( expr ) INTERNAL_CATCH_NO_THROW( expr, Catch::ResultDisposition::ContinueOnFailure, "CATCH_CHECK_NOTHROW" )
 
@@ -71,9 +88,7 @@
 #define CATCH_REQUIRE_THAT( arg, matcher ) INTERNAL_CHECK_THAT( arg, matcher, Catch::ResultDisposition::Normal, "CATCH_REQUIRE_THAT" )
 
 #define CATCH_INFO( msg ) INTERNAL_CATCH_INFO( msg, "CATCH_INFO" )
-#define CATCH_WARN( msg ) INTERNAL_CATCH_MSG( msg, Catch::ResultWas::Warning, Catch::ResultDisposition::ContinueOnFailure, "CATCH_WARN" )
-#define CATCH_FAIL( msg ) INTERNAL_CATCH_MSG( msg, Catch::ResultWas::ExplicitFailure, Catch::ResultDisposition::Normal, "CATCH_FAIL" )
-#define CATCH_SUCCEED( msg ) INTERNAL_CATCH_MSG( msg, Catch::ResultWas::Ok, Catch::ResultDisposition::ContinueOnFailure, "CATCH_SUCCEED" )
+#define CATCH_WARN( msg ) INTERNAL_CATCH_MSG( Catch::ResultWas::Warning, Catch::ResultDisposition::ContinueOnFailure, "CATCH_WARN", msg )
 #define CATCH_SCOPED_INFO( msg ) INTERNAL_CATCH_INFO( msg, "CATCH_INFO" )
 #define CATCH_CAPTURE( msg ) INTERNAL_CATCH_INFO( #msg " := " << msg, "CATCH_CAPTURE" )
 #define CATCH_SCOPED_CAPTURE( msg ) INTERNAL_CATCH_INFO( #msg " := " << msg, "CATCH_CAPTURE" )
@@ -83,11 +98,15 @@
     #define CATCH_TEST_CASE_METHOD( className, ... ) INTERNAL_CATCH_TEST_CASE_METHOD( className, __VA_ARGS__ )
     #define CATCH_METHOD_AS_TEST_CASE( method, ... ) INTERNAL_CATCH_METHOD_AS_TEST_CASE( method, __VA_ARGS__ )
     #define CATCH_SECTION( ... ) INTERNAL_CATCH_SECTION( __VA_ARGS__ )
+    #define CATCH_FAIL( ... ) INTERNAL_CATCH_MSG( Catch::ResultWas::ExplicitFailure, Catch::ResultDisposition::Normal, "CATCH_FAIL", __VA_ARGS__ )
+    #define CATCH_SUCCEED( ... ) INTERNAL_CATCH_MSG( Catch::ResultWas::Ok, Catch::ResultDisposition::ContinueOnFailure, "CATCH_SUCCEED", __VA_ARGS__ )
 #else
     #define CATCH_TEST_CASE( name, description ) INTERNAL_CATCH_TESTCASE( name, description )
     #define CATCH_TEST_CASE_METHOD( className, name, description ) INTERNAL_CATCH_TEST_CASE_METHOD( className, name, description )
     #define CATCH_METHOD_AS_TEST_CASE( method, name, description ) INTERNAL_CATCH_METHOD_AS_TEST_CASE( method, name, description )
     #define CATCH_SECTION( name, description ) INTERNAL_CATCH_SECTION( name, description )
+    #define CATCH_FAIL( msg ) INTERNAL_CATCH_MSG( Catch::ResultWas::ExplicitFailure, Catch::ResultDisposition::Normal, "CATCH_FAIL", msg )
+    #define CATCH_SUCCEED( msg ) INTERNAL_CATCH_MSG( Catch::ResultWas::Ok, Catch::ResultDisposition::ContinueOnFailure, "CATCH_SUCCEED", msg )
 #endif
 #define CATCH_ANON_TEST_CASE() INTERNAL_CATCH_TESTCASE( "", "" )
 
@@ -99,8 +118,10 @@
 // "BDD-style" convenience wrappers
 #ifdef CATCH_CONFIG_VARIADIC_MACROS
 #define CATCH_SCENARIO( ... ) CATCH_TEST_CASE( "Scenario: " __VA_ARGS__ )
+#define CATCH_SCENARIO_METHOD( className, ... ) INTERNAL_CATCH_TEST_CASE_METHOD( className, "Scenario: " __VA_ARGS__ )
 #else
 #define CATCH_SCENARIO( name, tags ) CATCH_TEST_CASE( "Scenario: " name, tags )
+#define CATCH_SCENARIO_METHOD( className, name, tags ) INTERNAL_CATCH_TEST_CASE_METHOD( className, "Scenario: " name, tags )
 #endif
 #define CATCH_GIVEN( desc )    CATCH_SECTION( "Given: " desc, "" )
 #define CATCH_WHEN( desc )     CATCH_SECTION( " When: " desc, "" )
@@ -112,19 +133,19 @@
 #else
 
 #define REQUIRE( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::Normal, "REQUIRE" )
-#define REQUIRE_FALSE( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::Normal | Catch::ResultDisposition::NegateResult, "REQUIRE_FALSE" )
+#define REQUIRE_FALSE( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::Normal | Catch::ResultDisposition::FalseTest, "REQUIRE_FALSE" )
 
-#define REQUIRE_THROWS( expr ) INTERNAL_CATCH_THROWS( expr, ..., Catch::ResultDisposition::Normal, "REQUIRE_THROWS" )
+#define REQUIRE_THROWS( expr ) INTERNAL_CATCH_THROWS( expr, Catch::ResultDisposition::Normal, "REQUIRE_THROWS" )
 #define REQUIRE_THROWS_AS( expr, exceptionType ) INTERNAL_CATCH_THROWS_AS( expr, exceptionType, Catch::ResultDisposition::Normal, "REQUIRE_THROWS_AS" )
 #define REQUIRE_NOTHROW( expr ) INTERNAL_CATCH_NO_THROW( expr, Catch::ResultDisposition::Normal, "REQUIRE_NOTHROW" )
 
 #define CHECK( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::ContinueOnFailure, "CHECK" )
-#define CHECK_FALSE( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::ContinueOnFailure | Catch::ResultDisposition::NegateResult, "CHECK_FALSE" )
+#define CHECK_FALSE( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::ContinueOnFailure | Catch::ResultDisposition::FalseTest, "CHECK_FALSE" )
 #define CHECKED_IF( expr ) INTERNAL_CATCH_IF( expr, Catch::ResultDisposition::ContinueOnFailure, "CHECKED_IF" )
 #define CHECKED_ELSE( expr ) INTERNAL_CATCH_ELSE( expr, Catch::ResultDisposition::ContinueOnFailure, "CHECKED_ELSE" )
 #define CHECK_NOFAIL( expr ) INTERNAL_CATCH_TEST( expr, Catch::ResultDisposition::ContinueOnFailure | Catch::ResultDisposition::SuppressFail, "CHECK_NOFAIL" )
 
-#define CHECK_THROWS( expr )  INTERNAL_CATCH_THROWS( expr, ..., Catch::ResultDisposition::ContinueOnFailure, "CHECK_THROWS" )
+#define CHECK_THROWS( expr )  INTERNAL_CATCH_THROWS( expr, Catch::ResultDisposition::ContinueOnFailure, "CHECK_THROWS" )
 #define CHECK_THROWS_AS( expr, exceptionType ) INTERNAL_CATCH_THROWS_AS( expr, exceptionType, Catch::ResultDisposition::ContinueOnFailure, "CHECK_THROWS_AS" )
 #define CHECK_NOTHROW( expr ) INTERNAL_CATCH_NO_THROW( expr, Catch::ResultDisposition::ContinueOnFailure, "CHECK_NOTHROW" )
 
@@ -132,9 +153,7 @@
 #define REQUIRE_THAT( arg, matcher ) INTERNAL_CHECK_THAT( arg, matcher, Catch::ResultDisposition::Normal, "REQUIRE_THAT" )
 
 #define INFO( msg ) INTERNAL_CATCH_INFO( msg, "INFO" )
-#define WARN( msg ) INTERNAL_CATCH_MSG( msg, Catch::ResultWas::Warning, Catch::ResultDisposition::ContinueOnFailure, "WARN" )
-#define FAIL( msg ) INTERNAL_CATCH_MSG( msg, Catch::ResultWas::ExplicitFailure, Catch::ResultDisposition::Normal, "FAIL" )
-#define SUCCEED( msg ) INTERNAL_CATCH_MSG( msg, Catch::ResultWas::Ok, Catch::ResultDisposition::ContinueOnFailure, "SUCCEED" )
+#define WARN( msg ) INTERNAL_CATCH_MSG( Catch::ResultWas::Warning, Catch::ResultDisposition::ContinueOnFailure, "WARN", msg )
 #define SCOPED_INFO( msg ) INTERNAL_CATCH_INFO( msg, "INFO" )
 #define CAPTURE( msg ) INTERNAL_CATCH_INFO( #msg " := " << msg, "CAPTURE" )
 #define SCOPED_CAPTURE( msg ) INTERNAL_CATCH_INFO( #msg " := " << msg, "CAPTURE" )
@@ -144,11 +163,15 @@
     #define TEST_CASE_METHOD( className, ... ) INTERNAL_CATCH_TEST_CASE_METHOD( className, __VA_ARGS__ )
     #define METHOD_AS_TEST_CASE( method, ... ) INTERNAL_CATCH_METHOD_AS_TEST_CASE( method, __VA_ARGS__ )
     #define SECTION( ... ) INTERNAL_CATCH_SECTION( __VA_ARGS__ )
+    #define FAIL( ... ) INTERNAL_CATCH_MSG( Catch::ResultWas::ExplicitFailure, Catch::ResultDisposition::Normal, "FAIL", __VA_ARGS__ )
+    #define SUCCEED( ... ) INTERNAL_CATCH_MSG( Catch::ResultWas::Ok, Catch::ResultDisposition::ContinueOnFailure, "SUCCEED", __VA_ARGS__ )
 #else
     #define TEST_CASE( name, description ) INTERNAL_CATCH_TESTCASE( name, description )
     #define TEST_CASE_METHOD( className, name, description ) INTERNAL_CATCH_TEST_CASE_METHOD( className, name, description )
     #define METHOD_AS_TEST_CASE( method, name, description ) INTERNAL_CATCH_METHOD_AS_TEST_CASE( method, name, description )
     #define SECTION( name, description ) INTERNAL_CATCH_SECTION( name, description )
+    #define FAIL( msg ) INTERNAL_CATCH_MSG( Catch::ResultWas::ExplicitFailure, Catch::ResultDisposition::Normal, "FAIL", msg )
+    #define SUCCEED( msg ) INTERNAL_CATCH_MSG( Catch::ResultWas::Ok, Catch::ResultDisposition::ContinueOnFailure, "SUCCEED", msg )
 #endif
 #define ANON_TEST_CASE() INTERNAL_CATCH_TESTCASE( "", "" )
 
@@ -164,8 +187,10 @@
 // "BDD-style" convenience wrappers
 #ifdef CATCH_CONFIG_VARIADIC_MACROS
 #define SCENARIO( ... ) TEST_CASE( "Scenario: " __VA_ARGS__ )
+#define SCENARIO_METHOD( className, ... ) INTERNAL_CATCH_TEST_CASE_METHOD( className, "Scenario: " __VA_ARGS__ )
 #else
 #define SCENARIO( name, tags ) TEST_CASE( "Scenario: " name, tags )
+#define SCENARIO_METHOD( className, name, tags ) INTERNAL_CATCH_TEST_CASE_METHOD( className, "Scenario: " name, tags )
 #endif
 #define GIVEN( desc )    SECTION( "   Given: " desc, "" )
 #define WHEN( desc )     SECTION( "    When: " desc, "" )
@@ -175,8 +200,6 @@
 
 using Catch::Detail::Approx;
 
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
+#include "internal/catch_reenable_warnings.h"
 
 #endif // TWOBLUECUBES_CATCH_HPP_INCLUDED

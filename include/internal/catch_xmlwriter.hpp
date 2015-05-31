@@ -8,8 +8,9 @@
 #ifndef TWOBLUECUBES_CATCH_XMLWRITER_HPP_INCLUDED
 #define TWOBLUECUBES_CATCH_XMLWRITER_HPP_INCLUDED
 
+#include "../internal/catch_stream.h"
+
 #include <sstream>
-#include <iostream>
 #include <string>
 #include <vector>
 
@@ -52,7 +53,7 @@ namespace Catch {
         XmlWriter()
         :   m_tagIsOpen( false ),
             m_needsNewline( false ),
-            m_os( &std::cout )
+            m_os( &Catch::cout() )
         {}
 
         XmlWriter( std::ostream& os )
@@ -64,20 +65,6 @@ namespace Catch {
         ~XmlWriter() {
             while( !m_tags.empty() )
                 endElement();
-        }
-
-        XmlWriter& operator = ( XmlWriter const& other ) {
-            XmlWriter temp( other );
-            swap( temp );
-            return *this;
-        }
-
-        void swap( XmlWriter& other ) {
-            std::swap( m_tagIsOpen, other.m_tagIsOpen );
-            std::swap( m_needsNewline, other.m_needsNewline );
-            std::swap( m_tags, other.m_tags );
-            std::swap( m_indent, other.m_indent );
-            std::swap( m_os, other.m_os );
         }
 
         XmlWriter& startElement( std::string const& name ) {
@@ -156,7 +143,13 @@ namespace Catch {
             return *this;
         }
 
+        void setStream( std::ostream& os ) {
+            m_os = &os;
+        }
+
     private:
+        XmlWriter( XmlWriter const& );
+        void operator=( XmlWriter const& );
 
         std::ostream& stream() {
             return *m_os;

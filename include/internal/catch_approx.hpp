@@ -8,7 +8,7 @@
 #ifndef TWOBLUECUBES_CATCH_APPROX_HPP_INCLUDED
 #define TWOBLUECUBES_CATCH_APPROX_HPP_INCLUDED
 
-#include "catch_tostring.hpp"
+#include "catch_tostring.h"
 
 #include <cmath>
 #include <limits>
@@ -70,7 +70,7 @@ namespace Detail {
 
         std::string toString() const {
             std::ostringstream oss;
-            oss << "Approx( " << m_value << " )";
+            oss << "Approx( " << Catch::toString( m_value ) << " )";
             return oss.str();
         }
 

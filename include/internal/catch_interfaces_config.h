@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "catch_ptr.hpp"
 
@@ -31,6 +32,13 @@ namespace Catch {
         Always,
         Never
     }; };
+    struct RunTests { enum InWhatOrder {
+        InDeclarationOrder,
+        InLexicographicalOrder,
+        InRandomOrder
+    }; };
+
+    class TestSpec;
 
     struct IConfig : IShared {
 
@@ -43,7 +51,12 @@ namespace Catch {
         virtual bool shouldDebugBreak() const = 0;
         virtual bool warnAboutMissingAssertions() const = 0;
         virtual int abortAfter() const = 0;
+        virtual bool showInvisibles() const = 0;
         virtual ShowDurations::OrNot showDurations() const = 0;
+        virtual TestSpec const& testSpec() const = 0;
+        virtual RunTests::InWhatOrder runOrder() const = 0;
+        virtual unsigned int rngSeed() const = 0;
+        virtual bool forceColour() const = 0;
     };
 }
 

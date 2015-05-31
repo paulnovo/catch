@@ -11,7 +11,7 @@
 #include "internal/catch_commandline.hpp"
 #include "internal/catch_list.hpp"
 #include "internal/catch_runner_impl.hpp"
-#include "internal/catch_test_spec.h"
+#include "internal/catch_test_spec.hpp"
 #include "internal/catch_version.h"
 #include "internal/catch_text.h"
 
@@ -33,46 +33,43 @@ namespace Catch {
 
         Totals runTests() {
 
-            std::vector<TestCaseFilters> filterGroups = m_config->filters();
-            if( filterGroups.empty() ) {
-                TestCaseFilters filterGroup( "" );
-                filterGroups.push_back( filterGroup );
-            }
-
             RunContext context( m_config.get(), m_reporter );
 
             Totals totals;
 
-            for( std::size_t i=0; i < filterGroups.size() && !context.aborting(); ++i ) {
-                context.testGroupStarting( filterGroups[i].getName(), i, filterGroups.size() );
-                totals += runTestsForGroup( context, filterGroups[i] );
-                context.testGroupEnded( filterGroups[i].getName(), totals, i, filterGroups.size() );
-            }
-            return totals;
-        }
+            context.testGroupStarting( "all tests", 1, 1 ); // deprecated?
 
-        Totals runTestsForGroup( RunContext& context, const TestCaseFilters& filterGroup ) {
-            Totals totals;
-            std::vector<TestCase>::const_iterator it = getRegistryHub().getTestCaseRegistry().getAllTests().begin();
-            std::vector<TestCase>::const_iterator itEnd = getRegistryHub().getTestCaseRegistry().getAllTests().end();
+            TestSpec testSpec = m_config->testSpec();
+            if( !testSpec.hasFilters() )
+                testSpec = TestSpecParser( ITagAliasRegistry::get() ).parse( "~[.]" ).testSpec(); // All not hidden tests
+
+            std::vector<TestCase> testCases;
+            getRegistryHub().getTestCaseRegistry().getFilteredTests( testSpec, *m_config, testCases );
+
             int testsRunForGroup = 0;
-            for(; it != itEnd; ++it ) {
-                if( filterGroup.shouldInclude( *it ) ) {
-                    testsRunForGroup++;
-                    if( m_testsAlreadyRun.find( *it ) == m_testsAlreadyRun.end() ) {
+            for( std::vector<TestCase>::const_iterator it = testCases.begin(), itEnd = testCases.end();
+                    it != itEnd;
+                    ++it ) {
+                testsRunForGroup++;
+                if( m_testsAlreadyRun.find( *it ) == m_testsAlreadyRun.end() ) {
 
-                        if( context.aborting() )
-                            break;
+                    if( context.aborting() )
+                        break;
 
-                        totals += context.runTest( *it );
-                        m_testsAlreadyRun.insert( *it );
-                    }
+                    totals += context.runTest( *it );
+                    m_testsAlreadyRun.insert( *it );
                 }
             }
-            if( testsRunForGroup == 0 && !filterGroup.getName().empty() )
-                m_reporter->noMatchingTestCases( filterGroup.getName() );
-            return totals;
+            std::vector<TestCase> skippedTestCases;
+            getRegistryHub().getTestCaseRegistry().getFilteredTests( testSpec, *m_config, skippedTestCases, true );
+            
+            for( std::vector<TestCase>::const_iterator it = skippedTestCases.begin(), itEnd = skippedTestCases.end();
+                    it != itEnd;
+                    ++it )
+                m_reporter->skipTest( *it );
 
+            context.testGroupEnded( "all tests", totals, 1, 1 );
+            return totals;
         }
 
     private:
@@ -108,7 +105,7 @@ namespace Catch {
         std::set<TestCase> m_testsAlreadyRun;
     };
 
-    class Session {
+    class Session : NonCopyable {
         static bool alreadyInstantiated;
 
     public:
@@ -119,7 +116,7 @@ namespace Catch {
         : m_cli( makeCommandLineParser() ) {
             if( alreadyInstantiated ) {
                 std::string msg = "Only one instance of Catch::Session can ever be used";
-                std::cerr << msg << std::endl;
+                Catch::cerr() << msg << std::endl;
                 throw std::logic_error( msg );
             }
             alreadyInstantiated = true;
@@ -129,22 +126,21 @@ namespace Catch {
         }
 
         void showHelp( std::string const& processName ) {
-            std::cout << "\nCatch v"    << libraryVersion.majorVersion << "."
+            Catch::cout() << "\nCatch v"    << libraryVersion.majorVersion << "."
                                         << libraryVersion.minorVersion << " build "
                                         << libraryVersion.buildNumber;
-            if( libraryVersion.branchName != "master" )
-                std::cout << " (" << libraryVersion.branchName << " branch)";
-            std::cout << "\n";
+            if( libraryVersion.branchName != std::string( "master" ) )
+                Catch::cout() << " (" << libraryVersion.branchName << " branch)";
+            Catch::cout() << "\n";
 
-            m_cli.usage( std::cout, processName );
-            std::cout << "For more detail usage please see the project docs\n" << std::endl;
+            m_cli.usage( Catch::cout(), processName );
+            Catch::cout() << "For more detail usage please see the project docs\n" << std::endl;
         }
 
         int applyCommandLine( int argc, char* const argv[], OnUnusedOptions::DoWhat unusedOptionBehaviour = OnUnusedOptions::Fail ) {
             try {
+                m_cli.setThrowOnUnrecognisedTokens( unusedOptionBehaviour == OnUnusedOptions::Fail );
                 m_unusedTokens = m_cli.parseInto( argc, argv, m_configData );
-                if( unusedOptionBehaviour == OnUnusedOptions::Fail )
-                    enforceNoUsedTokens();
                 if( m_configData.showHelp )
                     showHelp( m_configData.processName );
                 m_config.reset();
@@ -152,11 +148,11 @@ namespace Catch {
             catch( std::exception& ex ) {
                 {
                     Colour colourGuard( Colour::Red );
-                    std::cerr   << "\nError in input:\n"
+                    Catch::cerr()   << "\nError(s) in input:\n"
                                 << Text( ex.what(), TextAttributes().setIndent(2) )
                                 << "\n\n";
                 }
-                m_cli.usage( std::cout, m_configData.processName );
+                m_cli.usage( Catch::cout(), m_configData.processName );
                 return (std::numeric_limits<int>::max)();
             }
             return 0;
@@ -165,18 +161,6 @@ namespace Catch {
         void useConfigData( ConfigData const& _configData ) {
             m_configData = _configData;
             m_config.reset();
-        }
-
-        void enforceNoUsedTokens() const {
-            if( !m_unusedTokens.empty() ) {
-                std::vector<Clara::Parser::Token>::const_iterator
-                    it = m_unusedTokens.begin(),
-                    itEnd = m_unusedTokens.end();
-                std::string msg;
-                for(; it != itEnd; ++it )
-                    msg += "  unrecognised option: " + it->data + "\n";
-                throw std::runtime_error( msg.substr( 0, msg.size()-1 ) );
-            }
         }
 
         int run( int argc, char* const argv[] ) {
@@ -194,6 +178,9 @@ namespace Catch {
             try
             {
                 config(); // Force config to be constructed
+
+                std::srand( m_configData.rngSeed );
+
                 Runner runner( m_config );
 
                 // Handle list request
@@ -203,7 +190,7 @@ namespace Catch {
                 return static_cast<int>( runner.runTests().assertions.failed );
             }
             catch( std::exception& ex ) {
-                std::cerr << ex.what() << std::endl;
+                Catch::cerr() << ex.what() << std::endl;
                 return (std::numeric_limits<int>::max)();
             }
         }

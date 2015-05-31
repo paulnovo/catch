@@ -10,14 +10,36 @@
 
 #include "catch_console_colour.hpp"
 
-namespace Catch { namespace Detail {
-    struct IColourImpl {
-        virtual ~IColourImpl() {}
-        virtual void use( Colour::Code _colourCode ) = 0;
-    };
-}}
+namespace Catch {
+    namespace {
 
-#if defined ( CATCH_PLATFORM_WINDOWS ) /////////////////////////////////////////
+        struct IColourImpl {
+            virtual ~IColourImpl() {}
+            virtual void use( Colour::Code _colourCode ) = 0;
+        };
+
+        struct NoColourImpl : IColourImpl {
+            void use( Colour::Code ) {}
+
+            static IColourImpl* instance() {
+                static NoColourImpl s_instance;
+                return &s_instance;
+            }
+        };
+
+    } // anon namespace
+} // namespace Catch
+
+#if !defined( CATCH_CONFIG_COLOUR_NONE ) && !defined( CATCH_CONFIG_COLOUR_WINDOWS ) && !defined( CATCH_CONFIG_COLOUR_ANSI )
+#   ifdef CATCH_PLATFORM_WINDOWS
+#       define CATCH_CONFIG_COLOUR_WINDOWS
+#   else
+#       define CATCH_CONFIG_COLOUR_ANSI
+#   endif
+#endif
+
+
+#if defined ( CATCH_CONFIG_COLOUR_WINDOWS ) /////////////////////////////////////////
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -32,7 +54,7 @@ namespace Catch { namespace Detail {
 namespace Catch {
 namespace {
 
-    class Win32ColourImpl : public Detail::IColourImpl {
+    class Win32ColourImpl : public IColourImpl {
     public:
         Win32ColourImpl() : stdoutHandle( GetStdHandle(STD_OUTPUT_HANDLE) )
         {
@@ -69,16 +91,15 @@ namespace {
         WORD originalAttributes;
     };
 
-    inline bool shouldUseColourForPlatform() {
-        return true;
+    IColourImpl* platformColourInstance() {
+        static Win32ColourImpl s_instance;
+        return &s_instance;
     }
-
-    Win32ColourImpl platformColourImpl;
 
 } // end anon namespace
 } // end namespace Catch
 
-#else // Not Windows - assumed to be POSIX compatible //////////////////////////
+#elif defined( CATCH_CONFIG_COLOUR_ANSI ) //////////////////////////////////////
 
 #include <unistd.h>
 
@@ -89,7 +110,7 @@ namespace {
     // Thanks to Adam Strzelecki for original contribution
     // (http://github.com/nanoant)
     // https://github.com/philsquared/Catch/pull/131
-    class PosixColourImpl : public Detail::IColourImpl {
+    class PosixColourImpl : public IColourImpl {
     public:
         virtual void use( Colour::Code _colourCode ) {
             switch( _colourCode ) {
@@ -110,43 +131,49 @@ namespace {
                 case Colour::Bright: throw std::logic_error( "not a colour" );
             }
         }
+        static IColourImpl* instance() {
+            static PosixColourImpl s_instance;
+            return &s_instance;
+        }
+
     private:
         void setColour( const char* _escapeCode ) {
-            std::cout << '\033' << _escapeCode;
+            Catch::cout() << '\033' << _escapeCode;
         }
     };
 
-    inline bool shouldUseColourForPlatform() {
-        return isatty( fileno(stdout) );
+    IColourImpl* platformColourInstance() {
+        Ptr<IConfig const> config = getCurrentContext().getConfig();
+        return (config && config->forceColour()) || isatty(STDOUT_FILENO)
+            ? PosixColourImpl::instance()
+            : NoColourImpl::instance();
     }
-
-    PosixColourImpl platformColourImpl;
 
 } // end anon namespace
 } // end namespace Catch
 
-#endif // not Windows
+#else  // not Windows or ANSI ///////////////////////////////////////////////
 
 namespace Catch {
 
-    namespace {
-        struct NoColourImpl : Detail::IColourImpl {
-            void use( Colour::Code ) {}
-        };
-        NoColourImpl noColourImpl;
-        static const bool shouldUseColour = shouldUseColourForPlatform() &&
-                                            !isDebuggerActive();
-    }
+    static IColourImpl* platformColourInstance() { return NoColourImpl::instance(); }
 
-    Colour::Colour( Code _colourCode ){ use( _colourCode ); }
-    Colour::~Colour(){ use( None ); }
+} // end namespace Catch
+
+#endif // Windows/ ANSI/ None
+
+namespace Catch {
+
+    Colour::Colour( Code _colourCode ) : m_moved( false ) { use( _colourCode ); }
+    Colour::Colour( Colour const& _other ) : m_moved( false ) { const_cast<Colour&>( _other ).m_moved = true; }
+    Colour::~Colour(){ if( !m_moved ) use( None ); }
+
     void Colour::use( Code _colourCode ) {
+        static IColourImpl* impl = isDebuggerActive()
+            ? NoColourImpl::instance()
+            : platformColourInstance();
         impl->use( _colourCode );
     }
-
-    Detail::IColourImpl* Colour::impl = shouldUseColour
-            ? static_cast<Detail::IColourImpl*>( &platformColourImpl )
-            : static_cast<Detail::IColourImpl*>( &noColourImpl );
 
 } // end namespace Catch
 

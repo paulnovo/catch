@@ -1,6 +1,6 @@
 /*
- *  Created by Phil on 8/5/2012.
- *  Copyright 2012 Two Blue Cubes Ltd. All rights reserved.
+ *  Created by Phil on 23/4/2014.
+ *  Copyright 2014 Two Blue Cubes Ltd. All rights reserved.
  *
  *  Distributed under the Boost Software License, Version 1.0. (See accompanying
  *  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,176 +8,118 @@
 #ifndef TWOBLUECUBES_CATCH_TOSTRING_HPP_INCLUDED
 #define TWOBLUECUBES_CATCH_TOSTRING_HPP_INCLUDED
 
-#include "catch_common.h"
-#include "catch_sfinae.hpp"
-
-#include <sstream>
-#include <iomanip>
-#include <limits>
-
-#ifdef __OBJC__
-#include "catch_objc_arc.hpp"
-#endif
+#include "catch_tostring.h"
+#include "catch_interfaces_config.h"
 
 namespace Catch {
-namespace Detail {
-
-// SFINAE is currently disabled by default for all compilers.
-// If the non SFINAE version of IsStreamInsertable is ambiguous for you
-// and your compiler supports SFINAE, try #defining CATCH_CONFIG_SFINAE
-#ifdef CATCH_CONFIG_SFINAE
-
-    template<typename T>
-    class IsStreamInsertableHelper {
-        template<int N> struct TrueIfSizeable : TrueType {};
-
-        template<typename T2>
-        static TrueIfSizeable<sizeof((*(std::ostream*)0) << *((T2 const*)0))> dummy(T2*);
-        static FalseType dummy(...);
-
-    public:
-        typedef SizedIf<sizeof(dummy((T*)0))> type;
-    };
-
-    template<typename T>
-    struct IsStreamInsertable : IsStreamInsertableHelper<T>::type {};
-
-#else
-
-    struct BorgType {
-        template<typename T> BorgType( T const& );
-    };
-
-    TrueType& testStreamable( std::ostream& );
-    FalseType testStreamable( FalseType );
-
-    FalseType operator<<( std::ostream const&, BorgType const& );
-
-    template<typename T>
-    struct IsStreamInsertable {
-        static std::ostream &s;
-        static T  const&t;
-        enum { value = sizeof( testStreamable(s << t) ) == sizeof( TrueType ) };
-    };
-
-#endif
-
-    template<bool C>
-    struct StringMakerBase {
-        template<typename T>
-        static std::string convert( T const& ) { return "{?}"; }
-    };
-
-    template<>
-    struct StringMakerBase<true> {
-        template<typename T>
-        static std::string convert( T const& _value ) {
-            std::ostringstream oss;
-            oss << _value;
-            return oss.str();
-        }
-    };
-
-} // end namespace Detail
-
-template<typename T>
-std::string toString( T const& value );
-
-template<typename T>
-struct StringMaker :
-    Detail::StringMakerBase<Detail::IsStreamInsertable<T>::value> {};
-
-template<typename T>
-struct StringMaker<T*> {
-    template<typename U>
-    static std::string convert( U* p ) {
-        if( !p )
-            return INTERNAL_CATCH_STRINGIFY( NULL );
-        std::ostringstream oss;
-        oss << p;
-        return oss.str();
-    }
-};
-
-template<typename T>
-struct StringMaker<std::vector<T> > {
-    static std::string convert( std::vector<T> const& v ) {
-        std::ostringstream oss;
-        oss << "{ ";
-        for( std::size_t i = 0; i < v.size(); ++ i ) {
-            oss << toString( v[i] );
-            if( i < v.size() - 1 )
-                oss << ", ";
-        }
-        oss << " }";
-        return oss.str();
-    }
-};
 
 namespace Detail {
-    template<typename T>
-    inline std::string makeString( T const& value ) {
-        return StringMaker<T>::convert( value );
+
+    std::string unprintableString = "{?}";
+
+    namespace {
+        struct Endianness {
+            enum Arch { Big, Little };
+
+            static Arch which() {
+                union _{
+                    int asInt;
+                    char asChar[sizeof (int)];
+                } u;
+
+                u.asInt = 1;
+                return ( u.asChar[sizeof(int)-1] == 1 ) ? Big : Little;
+            }
+        };
     }
-} // end namespace Detail
 
-/// \brief converts any type to a string
-///
-/// The default template forwards on to ostringstream - except when an
-/// ostringstream overload does not exist - in which case it attempts to detect
-/// that and writes {?}.
-/// Overload (not specialise) this template for custom typs that you don't want
-/// to provide an ostream overload for.
-template<typename T>
-std::string toString( T const& value ) {
-    return StringMaker<T>::convert( value );
+    std::string rawMemoryToString( const void *object, std::size_t size )
+    {
+        // Reverse order for little endian architectures
+        int i = 0, end = static_cast<int>( size ), inc = 1;
+        if( Endianness::which() == Endianness::Little ) {
+            i = end-1;
+            end = inc = -1;
+        }
+
+        unsigned char const *bytes = static_cast<unsigned char const *>(object);
+        std::ostringstream os;
+        os << "0x" << std::setfill('0') << std::hex;
+        for( ; i != end; i += inc )
+             os << std::setw(2) << static_cast<unsigned>(bytes[i]);
+       return os.str();
+    }
 }
 
-// Built in overloads
-
-inline std::string toString( std::string const& value ) {
-    return "\"" + value + "\"";
+std::string toString( std::string const& value ) {
+    std::string s = value;
+    if( getCurrentContext().getConfig()->showInvisibles() ) {
+        for(size_t i = 0; i < s.size(); ++i ) {
+            std::string subs;
+            switch( s[i] ) {
+            case '\n': subs = "\\n"; break;
+            case '\t': subs = "\\t"; break;
+            default: break;
+            }
+            if( !subs.empty() ) {
+                s = s.substr( 0, i ) + subs + s.substr( i+1 );
+                ++i;
+            }
+        }
+    }
+    return "\"" + s + "\"";
 }
+std::string toString( std::wstring const& value ) {
 
-inline std::string toString( std::wstring const& value ) {
-    std::ostringstream oss;
-    oss << "\"";
+    std::string s;
+    s.reserve( value.size() );
     for(size_t i = 0; i < value.size(); ++i )
-        oss << static_cast<char>( value[i] <= 0xff ? value[i] : '?');
-    oss << "\"";
-    return oss.str();
+        s += value[i] <= 0xff ? static_cast<char>( value[i] ) : '?';
+    return Catch::toString( s );
 }
 
-inline std::string toString( const char* const value ) {
+std::string toString( const char* const value ) {
     return value ? Catch::toString( std::string( value ) ) : std::string( "{null string}" );
 }
 
-inline std::string toString( char* const value ) {
+std::string toString( char* const value ) {
     return Catch::toString( static_cast<const char*>( value ) );
 }
 
-inline std::string toString( int value ) {
+std::string toString( const wchar_t* const value )
+{
+	return value ? Catch::toString( std::wstring(value) ) : std::string( "{null string}" );
+}
+
+std::string toString( wchar_t* const value )
+{
+	return Catch::toString( static_cast<const wchar_t*>( value ) );
+}
+
+std::string toString( int value ) {
     std::ostringstream oss;
     oss << value;
+    if( value >= 255 )
+        oss << " (0x" << std::hex << value << ")";
     return oss.str();
 }
 
-inline std::string toString( unsigned long value ) {
+std::string toString( unsigned long value ) {
     std::ostringstream oss;
-    if( value > 8192 )
-        oss << "0x" << std::hex << value;
-    else
-        oss << value;
+    oss << value;
+    if( value >= 255 )
+        oss << " (0x" << std::hex << value << ")";
     return oss.str();
 }
 
-inline std::string toString( unsigned int value ) {
-    return toString( static_cast<unsigned long>( value ) );
+std::string toString( unsigned int value ) {
+    return Catch::toString( static_cast<unsigned long>( value ) );
 }
 
-inline std::string toString( const double value ) {
+template<typename T>
+std::string fpToString( T value, int precision ) {
     std::ostringstream oss;
-    oss << std::setprecision( 10 )
+    oss << std::setprecision( precision )
         << std::fixed
         << value;
     std::string d = oss.str();
@@ -190,42 +132,49 @@ inline std::string toString( const double value ) {
     return d;
 }
 
-inline std::string toString( bool value ) {
+std::string toString( const double value ) {
+    return fpToString( value, 10 );
+}
+std::string toString( const float value ) {
+    return fpToString( value, 5 ) + "f";
+}
+
+std::string toString( bool value ) {
     return value ? "true" : "false";
 }
 
-inline std::string toString( char value ) {
+std::string toString( char value ) {
     return value < ' '
         ? toString( static_cast<unsigned int>( value ) )
         : Detail::makeString( value );
 }
 
-inline std::string toString( signed char value ) {
+std::string toString( signed char value ) {
     return toString( static_cast<char>( value ) );
 }
 
-inline std::string toString( unsigned char value ) {
+std::string toString( unsigned char value ) {
     return toString( static_cast<char>( value ) );
 }
 
 #ifdef CATCH_CONFIG_CPP11_NULLPTR
-inline std::string toString( std::nullptr_t ) {
+std::string toString( std::nullptr_t ) {
     return "nullptr";
 }
 #endif
 
 #ifdef __OBJC__
-    inline std::string toString( NSString const * const& nsstring ) {
+    std::string toString( NSString const * const& nsstring ) {
         if( !nsstring )
             return "nil";
-        return std::string( "@\"" ) + [nsstring UTF8String] + "\"";
+        return "@" + toString([nsstring UTF8String]);
     }
-    inline std::string toString( NSString * CATCH_ARC_STRONG const& nsstring ) {
+    std::string toString( NSString * CATCH_ARC_STRONG const& nsstring ) {
         if( !nsstring )
             return "nil";
-        return std::string( "@\"" ) + [nsstring UTF8String] + "\"";
+        return "@" + toString([nsstring UTF8String]);
     }
-    inline std::string toString( NSObject* const& nsObject ) {
+    std::string toString( NSObject* const& nsObject ) {
         return toString( [nsObject description] );
     }
 #endif

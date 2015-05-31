@@ -12,10 +12,6 @@
 
 namespace Catch {
 
-    namespace Detail {
-        struct IColourImpl;
-    }
-
     struct Colour {
         enum Code {
             None = 0,
@@ -37,8 +33,10 @@ namespace Catch {
 
             // By intention
             FileName = LightGrey,
+            Warning = Yellow,
             ResultError = BrightRed,
             ResultSuccess = BrightGreen,
+            ResultExpectedFailure = Warning,
 
             Error = BrightRed,
             Success = Green,
@@ -52,14 +50,17 @@ namespace Catch {
 
         // Use constructed object for RAII guard
         Colour( Code _colourCode );
+        Colour( Colour const& other );
         ~Colour();
 
         // Use static method for one-shot changes
         static void use( Code _colourCode );
 
     private:
-        static Detail::IColourImpl* impl;
+        bool m_moved;
     };
+
+    inline std::ostream& operator << ( std::ostream& os, Colour const& ) { return os; }
 
 } // end namespace Catch
 

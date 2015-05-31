@@ -1,9 +1,10 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Contact: 
 Source: https://github.com/philsquared/Catch
- Upstream is not tagging its releases. Tarball downloaded from
- https://github.com/philsquared/Catch/archive/f7378eeb.tar.gz
- and issue opened at
+ Upstream is not tagging its releases. Tarball downloaded using
+ ./debian/rules get-orig-source
+ which uses the git hash in the debian version.
+ Upstream asked to tag releases here
  https://github.com/philsquared/Catch/issues/197
 
 Files: *

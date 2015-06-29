@@ -3,12 +3,6 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
-upstreamVersion := $(shell dpkg-parsechangelog -SVersion | cut -d- -f1)
-upstreamHash := $(shell echo $(upstreamVersion) | grep -oP '(?<=\+git)\w+')
-upstreamUrl := $(shell grep -oP "(?<=Homepage: )(.+)" $(CURDIR)/debian/control)
-upstreamName := $(shell dpkg-parsechangelog -SSource)
-
-
 %:
 	dh $@
 
@@ -21,7 +15,4 @@ override_dh_clean:
 		mv -f single_include/catch.hpp.bak single_include/catch.hpp; \
 	fi;
 	dh_clean
-
-get-orig-source:
-	wget -O - $(upstreamUrl)/archive/$(upstreamHash).tar.gz > ../$(upstreamName)_$(upstreamVersion).orig.tar.gz
 

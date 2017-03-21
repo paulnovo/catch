@@ -8,7 +8,7 @@
 
 override_dh_build:
 	cp single_include/catch.hpp single_include/catch.hpp.bak
-	python scripts/generateSingleHeader.py nobump
+	python scripts/generateSingleHeader.py
 
 override_dh_clean:
 	if [ -f single_include/catch.hpp.bak ]; then \

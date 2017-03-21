@@ -16,7 +16,7 @@ TEST_CASE
 )
 {
     double d = 1.23;
-    
+
     REQUIRE( d == Approx( 1.23 ) );
     REQUIRE( d != Approx( 1.22 ) );
     REQUIRE( d != Approx( 1.24 ) );
@@ -34,9 +34,39 @@ TEST_CASE
  )
 {
     double d = 1.23;
-    
+
     REQUIRE( d != Approx( 1.231 ) );
     REQUIRE( d == Approx( 1.231 ).epsilon( 0.1 ) );
+}
+
+///////////////////////////////////////////////////////////////////////////////
+TEST_CASE
+(
+ "Less-than inequalities with different epsilons",
+ "[Approx]"
+)
+{
+  double d = 1.23;
+
+  REQUIRE( d <= Approx( 1.24 ) );
+  REQUIRE( d <= Approx( 1.23 ) );
+  REQUIRE_FALSE( d <= Approx( 1.22 ) );
+  REQUIRE( d <= Approx( 1.22 ).epsilon(0.1) );
+}
+
+///////////////////////////////////////////////////////////////////////////////
+TEST_CASE
+(
+ "Greater-than inequalities with different epsilons",
+ "[Approx]"
+)
+{
+  double d = 1.23;
+
+  REQUIRE( d >= Approx( 1.22 ) );
+  REQUIRE( d >= Approx( 1.23 ) );
+  REQUIRE_FALSE( d >= Approx( 1.24 ) );
+  REQUIRE( d >= Approx( 1.24 ).epsilon(0.1) );
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -71,7 +101,7 @@ TEST_CASE
     const double dZero = 0;
     const double dSmall = 0.00001;
     const double dMedium = 1.234;
-    
+
     REQUIRE( 1.0f == Approx( 1 ) );
     REQUIRE( 0 == Approx( dZero) );
     REQUIRE( 0 == Approx( dSmall ).epsilon( 0.001 ) );
@@ -87,14 +117,14 @@ TEST_CASE
 )
 {
     double d = 1.23;
-    
+
     Approx approx = Approx::custom().epsilon( 0.005 );
-    
+
     REQUIRE( d == approx( 1.23 ) );
     REQUIRE( d == approx( 1.22 ) );
     REQUIRE( d == approx( 1.24 ) );
     REQUIRE( d != approx( 1.25 ) );
-    
+
     REQUIRE( approx( d ) == 1.23 );
     REQUIRE( approx( d ) == 1.22 );
     REQUIRE( approx( d ) == 1.24 );
@@ -110,3 +140,58 @@ TEST_CASE( "Approximate PI", "[Approx][PI]" )
     REQUIRE( divide( 22, 7 ) == Approx( 3.141 ).epsilon( 0.001 ) );
     REQUIRE( divide( 22, 7 ) != Approx( 3.141 ).epsilon( 0.0001 ) );
 }
+
+///////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE( "Absolute margin", "[Approx]" ) {
+    REQUIRE( 104.0 != Approx(100.0) );
+    REQUIRE( 104.0 == Approx(100.0).margin(5) );
+    REQUIRE( 104.0 != Approx(100.0).margin(3) );
+    REQUIRE( 100.3 != Approx(100.0) );
+    REQUIRE( 100.3 == Approx(100.0).margin(0.5) );
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#if defined(CATCH_CONFIG_CPP11_TYPE_TRAITS)
+class StrongDoubleTypedef
+{
+  double d_ = 0.0;
+
+  public:
+    explicit StrongDoubleTypedef(double d) : d_(d) {}
+    explicit operator double() const { return d_; }
+};
+
+inline std::ostream& operator<<( std::ostream& os, StrongDoubleTypedef td ) {
+    return os << "StrongDoubleTypedef(" << static_cast<double>(td) << ")";
+}
+
+TEST_CASE
+(
+ "Comparison with explicitly convertible types",
+ "[Approx][c++11]"
+)
+{
+  StrongDoubleTypedef td(10.0);
+
+  REQUIRE(td == Approx(10.0));
+  REQUIRE(Approx(10.0) == td);
+
+  REQUIRE(td != Approx(11.0));
+  REQUIRE(Approx(11.0) != td);
+
+  REQUIRE(td <= Approx(10.0));
+  REQUIRE(td <= Approx(11.0));
+  REQUIRE(Approx(10.0) <= td);
+  REQUIRE(Approx(9.0) <= td);
+
+  REQUIRE(td >= Approx(9.0));
+  REQUIRE(td >= Approx(10.0));
+  REQUIRE(Approx(10.0) >= td);
+  REQUIRE(Approx(11.0) >= td);
+
+}
+#endif
+
+////////////////////////////////////////////////////////////////////////////////

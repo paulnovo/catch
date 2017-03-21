@@ -9,7 +9,6 @@
 #define TWOBLUECUBES_CATCH_TOSTRING_H_INCLUDED
 
 #include "catch_common.h"
-#include "catch_sfinae.hpp"
 
 #include <sstream>
 #include <iomanip>
@@ -53,6 +52,11 @@ std::string toString( char value );
 std::string toString( signed char value );
 std::string toString( unsigned char value );
 
+#ifdef CATCH_CONFIG_CPP11_LONG_LONG
+std::string toString( long long value );
+std::string toString( unsigned long long value );
+#endif
+
 #ifdef CATCH_CONFIG_CPP11_NULLPTR
 std::string toString( std::nullptr_t );
 #endif
@@ -63,36 +67,17 @@ std::string toString( std::nullptr_t );
     std::string toString( NSObject* const& nsObject );
 #endif
 
-  
+
 namespace Detail {
 
-    extern std::string unprintableString;
-
-// SFINAE is currently disabled by default for all compilers.
-// If the non SFINAE version of IsStreamInsertable is ambiguous for you
-// and your compiler supports SFINAE, try #defining CATCH_CONFIG_SFINAE
-#ifdef CATCH_CONFIG_SFINAE
-
-    template<typename T>
-    class IsStreamInsertableHelper {
-        template<int N> struct TrueIfSizeable : TrueType {};
-
-        template<typename T2>
-        static TrueIfSizeable<sizeof((*(std::ostream*)0) << *((T2 const*)0))> dummy(T2*);
-        static FalseType dummy(...);
-
-    public:
-        typedef SizedIf<sizeof(dummy((T*)0))> type;
-    };
-
-    template<typename T>
-    struct IsStreamInsertable : IsStreamInsertableHelper<T>::type {};
-
-#else
+    extern const std::string unprintableString;
 
     struct BorgType {
         template<typename T> BorgType( T const& );
     };
+
+    struct TrueType { char sizer[1]; };
+    struct FalseType { char sizer[2]; };
 
     TrueType& testStreamable( std::ostream& );
     FalseType testStreamable( FalseType );
@@ -105,8 +90,6 @@ namespace Detail {
         static T  const&t;
         enum { value = sizeof( testStreamable(s << t) ) == sizeof( TrueType ) };
     };
-
-#endif
 
 #if defined(CATCH_CONFIG_CPP11_IS_ENUM)
     template<typename T,
@@ -170,7 +153,7 @@ struct StringMaker<T*> {
     template<typename U>
     static std::string convert( U* p ) {
         if( !p )
-            return INTERNAL_CATCH_STRINGIFY( NULL );
+            return "NULL";
         else
             return Detail::rawMemoryToString( p );
     }
@@ -180,7 +163,7 @@ template<typename R, typename C>
 struct StringMaker<R C::*> {
     static std::string convert( R C::* p ) {
         if( !p )
-            return INTERNAL_CATCH_STRINGIFY( NULL );
+            return "NULL";
         else
             return Detail::rawMemoryToString( p );
     }

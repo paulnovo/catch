@@ -16,8 +16,7 @@
 #include <memory>
 #include <vector>
 #include <string>
-#include <iostream>
-#include <ctime>
+#include <stdexcept>
 
 #ifndef CATCH_CONFIG_CONSOLE_WIDTH
 #define CATCH_CONFIG_CONSOLE_WIDTH 80
@@ -37,13 +36,14 @@ namespace Catch {
             noThrow( false ),
             showHelp( false ),
             showInvisibles( false ),
-            forceColour( false ),
+            filenamesAsTags( false ),
             abortAfter( -1 ),
             rngSeed( 0 ),
             verbosity( Verbosity::Normal ),
             warnings( WarnAbout::Nothing ),
             showDurations( ShowDurations::DefaultForReporter ),
-            runOrder( RunTests::InDeclarationOrder )
+            runOrder( RunTests::InDeclarationOrder ),
+            useColour( UseColour::Auto )
         {}
 
         bool listTests;
@@ -56,7 +56,7 @@ namespace Catch {
         bool noThrow;
         bool showHelp;
         bool showInvisibles;
-        bool forceColour;
+        bool filenamesAsTags;
 
         int abortAfter;
         unsigned int rngSeed;
@@ -65,13 +65,15 @@ namespace Catch {
         WarnAbout::What warnings;
         ShowDurations::OrNot showDurations;
         RunTests::InWhatOrder runOrder;
+        UseColour::YesOrNo useColour;
 
-        std::string reporterName;
         std::string outputFilename;
         std::string name;
         std::string processName;
 
+        std::vector<std::string> reporterNames;
         std::vector<std::string> testsOrTags;
+        std::vector<std::string> sectionsToRun;
     };
 
 
@@ -83,12 +85,11 @@ namespace Catch {
     public:
 
         Config()
-        :   m_os( Catch::cout().rdbuf() )
         {}
 
         Config( ConfigData const& data )
         :   m_data( data ),
-            m_os( Catch::cout().rdbuf() )
+            m_stream( openStream() )
         {
             if( !data.testsOrTags.empty() ) {
                 TestSpecParser parser( ITagAliasRegistry::get() );
@@ -98,14 +99,7 @@ namespace Catch {
             }
         }
 
-        virtual ~Config() {
-            m_os.rdbuf( Catch::cout().rdbuf() );
-            m_stream.release();
-        }
-
-        void setFilename( std::string const& filename ) {
-            m_data.outputFilename = filename;
-        }
+        virtual ~Config() {}
 
         std::string const& getFilename() const {
             return m_data.outputFilename ;
@@ -118,47 +112,46 @@ namespace Catch {
 
         std::string getProcessName() const { return m_data.processName; }
 
-        bool shouldDebugBreak() const { return m_data.shouldDebugBreak; }
+        std::vector<std::string> const& getReporterNames() const { return m_data.reporterNames; }
+        std::vector<std::string> const& getSectionsToRun() const CATCH_OVERRIDE { return m_data.sectionsToRun; }
 
-        void setStreamBuf( std::streambuf* buf ) {
-            m_os.rdbuf( buf ? buf : Catch::cout().rdbuf() );
-        }
-
-        void useStream( std::string const& streamName ) {
-            Stream stream = createStream( streamName );
-            setStreamBuf( stream.streamBuf );
-            m_stream.release();
-            m_stream = stream;
-        }
-
-        std::string getReporterName() const { return m_data.reporterName; }
-
-        int abortAfter() const { return m_data.abortAfter; }
-
-        TestSpec const& testSpec() const { return m_testSpec; }
+        virtual TestSpec const& testSpec() const CATCH_OVERRIDE { return m_testSpec; }
 
         bool showHelp() const { return m_data.showHelp; }
-        bool showInvisibles() const { return m_data.showInvisibles; }
 
         // IConfig interface
-        virtual bool allowThrows() const        { return !m_data.noThrow; }
-        virtual std::ostream& stream() const    { return m_os; }
-        virtual std::string name() const        { return m_data.name.empty() ? m_data.processName : m_data.name; }
-        virtual bool includeSuccessfulResults() const   { return m_data.showSuccessfulTests; }
-        virtual bool warnAboutMissingAssertions() const { return m_data.warnings & WarnAbout::NoAssertions; }
-        virtual ShowDurations::OrNot showDurations() const { return m_data.showDurations; }
-        virtual RunTests::InWhatOrder runOrder() const  { return m_data.runOrder; }
-        virtual unsigned int rngSeed() const    { return m_data.rngSeed; }
-        virtual bool forceColour() const { return m_data.forceColour; }
+        virtual bool allowThrows() const CATCH_OVERRIDE                 { return !m_data.noThrow; }
+        virtual std::ostream& stream() const CATCH_OVERRIDE             { return m_stream->stream(); }
+        virtual std::string name() const CATCH_OVERRIDE                 { return m_data.name.empty() ? m_data.processName : m_data.name; }
+        virtual bool includeSuccessfulResults() const CATCH_OVERRIDE    { return m_data.showSuccessfulTests; }
+        virtual bool warnAboutMissingAssertions() const CATCH_OVERRIDE  { return m_data.warnings & WarnAbout::NoAssertions; }
+        virtual ShowDurations::OrNot showDurations() const CATCH_OVERRIDE { return m_data.showDurations; }
+        virtual RunTests::InWhatOrder runOrder() const CATCH_OVERRIDE   { return m_data.runOrder; }
+        virtual unsigned int rngSeed() const CATCH_OVERRIDE             { return m_data.rngSeed; }
+        virtual UseColour::YesOrNo useColour() const CATCH_OVERRIDE     { return m_data.useColour; }
+        virtual bool shouldDebugBreak() const CATCH_OVERRIDE { return m_data.shouldDebugBreak; }
+        virtual int abortAfter() const CATCH_OVERRIDE { return m_data.abortAfter; }
+        virtual bool showInvisibles() const CATCH_OVERRIDE { return m_data.showInvisibles; }
 
     private:
+
+        IStream const* openStream() {
+            if( m_data.outputFilename.empty() )
+                return new CoutStream();
+            else if( m_data.outputFilename[0] == '%' ) {
+                if( m_data.outputFilename == "%debug" )
+                    return new DebugOutStream();
+                else
+                    throw std::domain_error( "Unrecognised stream: " + m_data.outputFilename );
+            }
+            else
+                return new FileStream( m_data.outputFilename );
+        }
         ConfigData m_data;
 
-        Stream m_stream;
-        mutable std::ostream m_os;
+        CATCH_AUTO_PTR( IStream const ) m_stream;
         TestSpec m_testSpec;
     };
-
 
 } // end namespace Catch
 

@@ -15,9 +15,11 @@ namespace Catch {
 
 namespace Detail {
 
-    std::string unprintableString = "{?}";
+    const std::string unprintableString = "{?}";
 
     namespace {
+        const int hexThreshold = 255;
+
         struct Endianness {
             enum Arch { Big, Little };
 
@@ -67,7 +69,7 @@ std::string toString( std::string const& value ) {
             }
         }
     }
-    return "\"" + s + "\"";
+    return '"' + s + '"';
 }
 std::string toString( std::wstring const& value ) {
 
@@ -88,27 +90,27 @@ std::string toString( char* const value ) {
 
 std::string toString( const wchar_t* const value )
 {
-	return value ? Catch::toString( std::wstring(value) ) : std::string( "{null string}" );
+    return value ? Catch::toString( std::wstring(value) ) : std::string( "{null string}" );
 }
 
 std::string toString( wchar_t* const value )
 {
-	return Catch::toString( static_cast<const wchar_t*>( value ) );
+    return Catch::toString( static_cast<const wchar_t*>( value ) );
 }
 
 std::string toString( int value ) {
     std::ostringstream oss;
     oss << value;
-    if( value >= 255 )
-        oss << " (0x" << std::hex << value << ")";
+    if( value > Detail::hexThreshold )
+        oss << " (0x" << std::hex << value << ')';
     return oss.str();
 }
 
 std::string toString( unsigned long value ) {
     std::ostringstream oss;
     oss << value;
-    if( value >= 255 )
-        oss << " (0x" << std::hex << value << ")";
+    if( value > Detail::hexThreshold )
+        oss << " (0x" << std::hex << value << ')';
     return oss.str();
 }
 
@@ -136,7 +138,7 @@ std::string toString( const double value ) {
     return fpToString( value, 10 );
 }
 std::string toString( const float value ) {
-    return fpToString( value, 5 ) + "f";
+    return fpToString( value, 5 ) + 'f';
 }
 
 std::string toString( bool value ) {
@@ -144,9 +146,19 @@ std::string toString( bool value ) {
 }
 
 std::string toString( char value ) {
-    return value < ' '
-        ? toString( static_cast<unsigned int>( value ) )
-        : Detail::makeString( value );
+    if ( value == '\r' )
+        return "'\\r'";
+    if ( value == '\f' )
+        return "'\\f'";
+    if ( value == '\n' )
+        return "'\\n'";
+    if ( value == '\t' )
+        return "'\\t'";
+    if ( '\0' <= value && value < ' ' )
+        return toString( static_cast<unsigned int>( value ) );
+    char chstr[] = "' '";
+    chstr[1] = value;
+    return chstr;
 }
 
 std::string toString( signed char value ) {
@@ -156,6 +168,23 @@ std::string toString( signed char value ) {
 std::string toString( unsigned char value ) {
     return toString( static_cast<char>( value ) );
 }
+
+#ifdef CATCH_CONFIG_CPP11_LONG_LONG
+std::string toString( long long value ) {
+    std::ostringstream oss;
+    oss << value;
+    if( value > Detail::hexThreshold )
+        oss << " (0x" << std::hex << value << ')';
+    return oss.str();
+}
+std::string toString( unsigned long long value ) {
+    std::ostringstream oss;
+    oss << value;
+    if( value > Detail::hexThreshold )
+        oss << " (0x" << std::hex << value << ')';
+    return oss.str();
+}
+#endif
 
 #ifdef CATCH_CONFIG_CPP11_NULLPTR
 std::string toString( std::nullptr_t ) {

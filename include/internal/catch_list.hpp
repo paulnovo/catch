@@ -34,8 +34,7 @@ namespace Catch {
         nameAttr.setInitialIndent( 2 ).setIndent( 4 );
         tagsAttr.setIndent( 6 );
 
-        std::vector<TestCase> matchedTestCases;
-        getRegistryHub().getTestCaseRegistry().getFilteredTests( testSpec, config, matchedTestCases );
+        std::vector<TestCase> matchedTestCases = filterTests( getAllTestCasesSorted( config ), testSpec, config );
         for( std::vector<TestCase>::const_iterator it = matchedTestCases.begin(), itEnd = matchedTestCases.end();
                 it != itEnd;
                 ++it ) {
@@ -52,9 +51,9 @@ namespace Catch {
         }
 
         if( !config.testSpec().hasFilters() )
-            Catch::cout() << pluralise( matchedTests, "test case" ) << "\n" << std::endl;
+            Catch::cout() << pluralise( matchedTests, "test case" ) << '\n' << std::endl;
         else
-            Catch::cout() << pluralise( matchedTests, "matching test case" ) << "\n" << std::endl;
+            Catch::cout() << pluralise( matchedTests, "matching test case" ) << '\n' << std::endl;
         return matchedTests;
     }
 
@@ -63,14 +62,16 @@ namespace Catch {
         if( !config.testSpec().hasFilters() )
             testSpec = TestSpecParser( ITagAliasRegistry::get() ).parse( "*" ).testSpec();
         std::size_t matchedTests = 0;
-        std::vector<TestCase> matchedTestCases;
-        getRegistryHub().getTestCaseRegistry().getFilteredTests( testSpec, config, matchedTestCases );
+        std::vector<TestCase> matchedTestCases = filterTests( getAllTestCasesSorted( config ), testSpec, config );
         for( std::vector<TestCase>::const_iterator it = matchedTestCases.begin(), itEnd = matchedTestCases.end();
                 it != itEnd;
                 ++it ) {
             matchedTests++;
             TestCaseInfo const& testCaseInfo = it->getTestCaseInfo();
-            Catch::cout() << testCaseInfo.name << std::endl;
+            if( startsWith( testCaseInfo.name, '#' ) )
+               Catch::cout() << '"' << testCaseInfo.name << '"' << std::endl;
+            else
+               Catch::cout() << testCaseInfo.name << std::endl;
         }
         return matchedTests;
     }
@@ -104,8 +105,7 @@ namespace Catch {
 
         std::map<std::string, TagInfo> tagCounts;
 
-        std::vector<TestCase> matchedTestCases;
-        getRegistryHub().getTestCaseRegistry().getFilteredTests( testSpec, config, matchedTestCases );
+        std::vector<TestCase> matchedTestCases = filterTests( getAllTestCasesSorted( config ), testSpec, config );
         for( std::vector<TestCase>::const_iterator it = matchedTestCases.begin(), itEnd = matchedTestCases.end();
                 it != itEnd;
                 ++it ) {
@@ -132,9 +132,9 @@ namespace Catch {
                                                     .setInitialIndent( 0 )
                                                     .setIndent( oss.str().size() )
                                                     .setWidth( CATCH_CONFIG_CONSOLE_WIDTH-10 ) );
-            Catch::cout() << oss.str() << wrapper << "\n";
+            Catch::cout() << oss.str() << wrapper << '\n';
         }
-        Catch::cout() << pluralise( tagCounts.size(), "tag" ) << "\n" << std::endl;
+        Catch::cout() << pluralise( tagCounts.size(), "tag" ) << '\n' << std::endl;
         return tagCounts.size();
     }
 
@@ -153,9 +153,9 @@ namespace Catch {
                                                         .setWidth( CATCH_CONFIG_CONSOLE_WIDTH - maxNameLen-8 ) );
             Catch::cout() << "  "
                     << it->first
-                    << ":"
+                    << ':'
                     << std::string( maxNameLen - it->first.size() + 2, ' ' )
-                    << wrapper << "\n";
+                    << wrapper << '\n';
         }
         Catch::cout() << std::endl;
         return factories.size();

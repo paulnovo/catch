@@ -18,33 +18,58 @@
 
 namespace Catch {
 
+    namespace {
+        std::string getCurrentTimestamp() {
+            // Beware, this is not reentrant because of backward compatibility issues
+            // Also, UTC only, again because of backward compatibility (%z is C++11)
+            time_t rawtime;
+            std::time(&rawtime);
+            const size_t timeStampSize = sizeof("2017-01-16T17:06:45Z");
+
+#ifdef _MSC_VER
+            std::tm timeInfo = {};
+            gmtime_s(&timeInfo, &rawtime);
+#else
+            std::tm* timeInfo;
+            timeInfo = std::gmtime(&rawtime);
+#endif
+
+            char timeStamp[timeStampSize];
+            const char * const fmt = "%Y-%m-%dT%H:%M:%SZ";
+
+#ifdef _MSC_VER
+            std::strftime(timeStamp, timeStampSize, fmt, &timeInfo);
+#else
+            std::strftime(timeStamp, timeStampSize, fmt, timeInfo);
+#endif
+            return std::string(timeStamp);
+        }
+
+    }
+
     class JunitReporter : public CumulativeReporterBase {
     public:
         JunitReporter( ReporterConfig const& _config )
         :   CumulativeReporterBase( _config ),
             xml( _config.stream() )
-        {}
+        {
+            m_reporterPrefs.shouldRedirectStdOut = true;
+        }
 
-        ~JunitReporter();
+        virtual ~JunitReporter() CATCH_OVERRIDE;
 
         static std::string getDescription() {
             return "Reports test results in an XML format that looks like Ant's junitreport target";
         }
 
-        virtual void noMatchingTestCases( std::string const& /*spec*/ ) {}
+        virtual void noMatchingTestCases( std::string const& /*spec*/ ) CATCH_OVERRIDE {}
 
-        virtual ReporterPreferences getPreferences() const {
-            ReporterPreferences prefs;
-            prefs.shouldRedirectStdOut = true;
-            return prefs;
-        }
-
-        virtual void testRunStarting( TestRunInfo const& runInfo ) {
+        virtual void testRunStarting( TestRunInfo const& runInfo ) CATCH_OVERRIDE {
             CumulativeReporterBase::testRunStarting( runInfo );
             xml.startElement( "testsuites" );
         }
 
-        virtual void testGroupStarting( GroupInfo const& groupInfo ) {
+        virtual void testGroupStarting( GroupInfo const& groupInfo ) CATCH_OVERRIDE {
             suiteTimer.start();
             stdOutForSuite.str("");
             stdErrForSuite.str("");
@@ -52,25 +77,25 @@ namespace Catch {
             CumulativeReporterBase::testGroupStarting( groupInfo );
         }
 
-        virtual bool assertionEnded( AssertionStats const& assertionStats ) {
+        virtual bool assertionEnded( AssertionStats const& assertionStats ) CATCH_OVERRIDE {
             if( assertionStats.assertionResult.getResultType() == ResultWas::ThrewException )
                 unexpectedExceptions++;
             return CumulativeReporterBase::assertionEnded( assertionStats );
         }
 
-        virtual void testCaseEnded( TestCaseStats const& testCaseStats ) {
+        virtual void testCaseEnded( TestCaseStats const& testCaseStats ) CATCH_OVERRIDE {
             stdOutForSuite << testCaseStats.stdOut;
             stdErrForSuite << testCaseStats.stdErr;
             CumulativeReporterBase::testCaseEnded( testCaseStats );
         }
 
-        virtual void testGroupEnded( TestGroupStats const& testGroupStats ) {
+        virtual void testGroupEnded( TestGroupStats const& testGroupStats ) CATCH_OVERRIDE {
             double suiteTime = suiteTimer.getElapsedSeconds();
             CumulativeReporterBase::testGroupEnded( testGroupStats );
             writeGroup( *m_testGroups.back(), suiteTime );
         }
 
-        virtual void testRunEndedCumulative() {
+        virtual void testRunEndedCumulative() CATCH_OVERRIDE {
             xml.endElement();
         }
 
@@ -86,7 +111,7 @@ namespace Catch {
                 xml.writeAttribute( "time", "" );
             else
                 xml.writeAttribute( "time", suiteTime );
-            xml.writeAttribute( "timestamp", "tbd" ); // !TBD
+            xml.writeAttribute( "timestamp", getCurrentTimestamp() );
 
             // Write test cases
             for( TestGroupNode::ChildNodes::const_iterator
@@ -108,7 +133,7 @@ namespace Catch {
             SectionNode const& rootSection = *testCaseNode.children.front();
 
             std::string className = stats.testInfo.className;
-            
+
             if( className.empty() ) {
                 if( rootSection.childSections.empty() )
                     className = "global";
@@ -121,8 +146,8 @@ namespace Catch {
                             SectionNode const& sectionNode ) {
             std::string name = trim( sectionNode.stats.sectionInfo.name );
             if( !rootName.empty() )
-                name = rootName + "/" + name;
-            
+                name = rootName + '/' + name;
+
             if( !sectionNode.assertions.empty() ||
                 !sectionNode.stdOut.empty() ||
                 !sectionNode.stdErr.empty() ) {
@@ -191,7 +216,7 @@ namespace Catch {
                         elementName = "internalError";
                         break;
                 }
-            
+
                 XmlWriter::ScopedElement e = xml.scopedElement( elementName );
 
                 xml.writeAttribute( "message", result.getExpandedExpression() );
@@ -199,14 +224,14 @@ namespace Catch {
 
                 std::ostringstream oss;
                 if( !result.getMessage().empty() )
-                    oss << result.getMessage() << "\n";
+                    oss << result.getMessage() << '\n';
                 for( std::vector<MessageInfo>::const_iterator
                         it = stats.infoMessages.begin(),
                         itEnd = stats.infoMessages.end();
                             it != itEnd;
                             ++it )
                     if( it->type == ResultWas::Info )
-                        oss << it->message << "\n";
+                        oss << it->message << '\n';
 
                 oss << "at " << result.getSourceInfo();
                 xml.writeText( oss.str(), false );
@@ -220,7 +245,7 @@ namespace Catch {
         unsigned int unexpectedExceptions;
     };
 
-    INTERNAL_CATCH_REGISTER_REPORTER( "junit", JunitReporter )    
+    INTERNAL_CATCH_REGISTER_REPORTER( "junit", JunitReporter )
 
 } // end namespace Catch
 

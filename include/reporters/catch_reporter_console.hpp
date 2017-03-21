@@ -13,7 +13,11 @@
 #include "../internal/catch_reporter_registrars.hpp"
 #include "../internal/catch_console_colour.hpp"
 
+#include <cfloat>
+#include <cstdio>
+
 namespace Catch {
+
 
     struct ConsoleReporter : StreamingReporterBase {
         ConsoleReporter( ReporterConfig const& _config )
@@ -21,48 +25,40 @@ namespace Catch {
             m_headerPrinted( false )
         {}
 
-        virtual ~ConsoleReporter();
+        virtual ~ConsoleReporter() CATCH_OVERRIDE;
         static std::string getDescription() {
             return "Reports test results as plain lines of text";
         }
-        virtual ReporterPreferences getPreferences() const {
-            ReporterPreferences prefs;
-            prefs.shouldRedirectStdOut = false;
-            return prefs;
+
+        virtual void noMatchingTestCases( std::string const& spec ) CATCH_OVERRIDE {
+            stream << "No test cases matched '" << spec << '\'' << std::endl;
         }
 
-        virtual void noMatchingTestCases( std::string const& spec ) {
-            stream << "No test cases matched '" << spec << "'" << std::endl;
+        virtual void assertionStarting( AssertionInfo const& ) CATCH_OVERRIDE {
         }
 
-        virtual void assertionStarting( AssertionInfo const& ) {
-        }
-
-        virtual bool assertionEnded( AssertionStats const& _assertionStats ) {
+        virtual bool assertionEnded( AssertionStats const& _assertionStats ) CATCH_OVERRIDE {
             AssertionResult const& result = _assertionStats.assertionResult;
 
-            bool printInfoMessages = true;
+            bool includeResults = m_config->includeSuccessfulResults() || !result.isOk();
 
-            // Drop out if result was successful and we're not printing those
-            if( !m_config->includeSuccessfulResults() && result.isOk() ) {
-                if( result.getResultType() != ResultWas::Warning )
-                    return false;
-                printInfoMessages = false;
-            }
+            // Drop out if result was successful but we're not printing them.
+            if( !includeResults && result.getResultType() != ResultWas::Warning )
+                return false;
 
             lazyPrint();
 
-            AssertionPrinter printer( stream, _assertionStats, printInfoMessages );
+            AssertionPrinter printer( stream, _assertionStats, includeResults );
             printer.print();
             stream << std::endl;
             return true;
         }
 
-        virtual void sectionStarting( SectionInfo const& _sectionInfo ) {
+        virtual void sectionStarting( SectionInfo const& _sectionInfo ) CATCH_OVERRIDE {
             m_headerPrinted = false;
             StreamingReporterBase::sectionStarting( _sectionInfo );
         }
-        virtual void sectionEnded( SectionStats const& _sectionStats ) {
+        virtual void sectionEnded( SectionStats const& _sectionStats ) CATCH_OVERRIDE {
             if( _sectionStats.missingAssertions ) {
                 lazyPrint();
                 Colour colour( Colour::ResultError );
@@ -72,32 +68,29 @@ namespace Catch {
                     stream << "\nNo assertions in test case";
                 stream << " '" << _sectionStats.sectionInfo.name << "'\n" << std::endl;
             }
-            if( m_headerPrinted ) {
-                if( m_config->showDurations() == ShowDurations::Always )
-                    stream << "Completed in " << _sectionStats.durationInSeconds << "s" << std::endl;
-                m_headerPrinted = false;
+            if( m_config->showDurations() == ShowDurations::Always ) {
+                stream << getFormattedDuration(_sectionStats.durationInSeconds) << " s: " << _sectionStats.sectionInfo.name << std::endl;
             }
-            else {
-                if( m_config->showDurations() == ShowDurations::Always )
-                    stream << _sectionStats.sectionInfo.name << " completed in " << _sectionStats.durationInSeconds << "s" << std::endl;
+            if( m_headerPrinted ) {
+                m_headerPrinted = false;
             }
             StreamingReporterBase::sectionEnded( _sectionStats );
         }
 
-        virtual void testCaseEnded( TestCaseStats const& _testCaseStats ) {
+        virtual void testCaseEnded( TestCaseStats const& _testCaseStats ) CATCH_OVERRIDE {
             StreamingReporterBase::testCaseEnded( _testCaseStats );
             m_headerPrinted = false;
         }
-        virtual void testGroupEnded( TestGroupStats const& _testGroupStats ) {
+        virtual void testGroupEnded( TestGroupStats const& _testGroupStats ) CATCH_OVERRIDE {
             if( currentGroupInfo.used ) {
                 printSummaryDivider();
                 stream << "Summary for group '" << _testGroupStats.groupInfo.name << "':\n";
                 printTotals( _testGroupStats.totals );
-                stream << "\n" << std::endl;
+                stream << '\n' << std::endl;
             }
             StreamingReporterBase::testGroupEnded( _testGroupStats );
         }
-        virtual void testRunEnded( TestRunStats const& _testRunStats ) {
+        virtual void testRunEnded( TestRunStats const& _testRunStats ) CATCH_OVERRIDE {
             printTotalsDivider( _testRunStats.totals );
             printTotals( _testRunStats.totals );
             stream << std::endl;
@@ -185,13 +178,13 @@ namespace Catch {
                 printSourceInfo();
                 if( stats.totals.assertions.total() > 0 ) {
                     if( result.isOk() )
-                        stream << "\n";
+                        stream << '\n';
                     printResultType();
                     printOriginalExpression();
                     printReconstructedExpression();
                 }
                 else {
-                    stream << "\n";
+                    stream << '\n';
                 }
                 printMessage();
             }
@@ -208,25 +201,25 @@ namespace Catch {
                     Colour colourGuard( Colour::OriginalExpression );
                     stream  << "  ";
                     stream << result.getExpressionInMacro();
-                    stream << "\n";
+                    stream << '\n';
                 }
             }
             void printReconstructedExpression() const {
                 if( result.hasExpandedExpression() ) {
                     stream << "with expansion:\n";
                     Colour colourGuard( Colour::ReconstructedExpression );
-                    stream << Text( result.getExpandedExpression(), TextAttributes().setIndent(2) ) << "\n";
+                    stream << Text( result.getExpandedExpression(), TextAttributes().setIndent(2) ) << '\n';
                 }
             }
             void printMessage() const {
                 if( !messageLabel.empty() )
-                    stream << messageLabel << ":" << "\n";
+                    stream << messageLabel << ':' << '\n';
                 for( std::vector<MessageInfo>::const_iterator it = messages.begin(), itEnd = messages.end();
                         it != itEnd;
                         ++it ) {
                     // If this assertion is a warning ignore any INFO messages
                     if( printInfoMessages || it->type != ResultWas::Info )
-                        stream << Text( it->message, TextAttributes().setIndent(2) ) << "\n";
+                        stream << Text( it->message, TextAttributes().setIndent(2) ) << '\n';
                 }
             }
             void printSourceInfo() const {
@@ -258,7 +251,7 @@ namespace Catch {
             }
         }
         void lazyPrintRunInfo() {
-            stream  << "\n" << getLineOfChars<'~'>() << "\n";
+            stream  << '\n' << getLineOfChars<'~'>() << '\n';
             Colour colour( Colour::SecondaryText );
             stream  << currentTestRunInfo->name
                     << " is a Catch v"  << libraryVersion << " host application.\n"
@@ -289,22 +282,22 @@ namespace Catch {
                     printHeaderString( it->name, 2 );
             }
 
-            SourceLineInfo lineInfo = m_sectionStack.front().lineInfo;
+            SourceLineInfo lineInfo = m_sectionStack.back().lineInfo;
 
             if( !lineInfo.empty() ){
-                stream << getLineOfChars<'-'>() << "\n";
+                stream << getLineOfChars<'-'>() << '\n';
                 Colour colourGuard( Colour::FileName );
-                stream << lineInfo << "\n";
+                stream << lineInfo << '\n';
             }
-            stream << getLineOfChars<'.'>() << "\n" << std::endl;
+            stream << getLineOfChars<'.'>() << '\n' << std::endl;
         }
 
         void printClosedHeader( std::string const& _name ) {
             printOpenHeader( _name );
-            stream << getLineOfChars<'.'>() << "\n";
+            stream << getLineOfChars<'.'>() << '\n';
         }
         void printOpenHeader( std::string const& _name ) {
-            stream  << getLineOfChars<'-'>() << "\n";
+            stream  << getLineOfChars<'-'>() << '\n';
             {
                 Colour colourGuard( Colour::Headers );
                 printHeaderString( _name );
@@ -321,7 +314,7 @@ namespace Catch {
                 i = 0;
             stream << Text( _string, TextAttributes()
                                         .setIndent( indent+i)
-                                        .setInitialIndent( indent ) ) << "\n";
+                                        .setInitialIndent( indent ) ) << '\n';
         }
 
         struct SummaryColumn {
@@ -336,9 +329,9 @@ namespace Catch {
                 std::string row = oss.str();
                 for( std::vector<std::string>::iterator it = rows.begin(); it != rows.end(); ++it ) {
                     while( it->size() < row.size() )
-                        *it = " " + *it;
+                        *it = ' ' + *it;
                     while( it->size() > row.size() )
-                        row = " " + row;
+                        row = ' ' + row;
                 }
                 rows.push_back( row );
                 return *this;
@@ -354,12 +347,12 @@ namespace Catch {
             if( totals.testCases.total() == 0 ) {
                 stream << Colour( Colour::Warning ) << "No tests ran\n";
             }
-            else if( totals.assertions.total() > 0 && totals.assertions.allPassed() ) {
+            else if( totals.assertions.total() > 0 && totals.testCases.allPassed() ) {
                 stream << Colour( Colour::ResultSuccess ) << "All tests passed";
                 stream << " ("
                         << pluralise( totals.assertions.passed, "assertion" ) << " in "
-                        << pluralise( totals.testCases.passed, "test case" ) << ")"
-                        << "\n";
+                        << pluralise( totals.testCases.passed, "test case" ) << ')'
+                        << '\n';
             }
             else {
 
@@ -394,10 +387,10 @@ namespace Catch {
                 else if( value != "0" ) {
                     stream  << Colour( Colour::LightGrey ) << " | ";
                     stream  << Colour( it->colour )
-                            << value << " " << it->label;
+                            << value << ' ' << it->label;
                 }
             }
-            stream << "\n";
+            stream << '\n';
         }
 
         static std::size_t makeRatio( std::size_t number, std::size_t total ) {
@@ -433,10 +426,10 @@ namespace Catch {
             else {
                 stream << Colour( Colour::Warning ) << std::string( CATCH_CONFIG_CONSOLE_WIDTH-1, '=' );
             }
-            stream << "\n";
+            stream << '\n';
         }
         void printSummaryDivider() {
-            stream << getLineOfChars<'-'>() << "\n";
+            stream << getLineOfChars<'-'>() << '\n';
         }
 
     private:

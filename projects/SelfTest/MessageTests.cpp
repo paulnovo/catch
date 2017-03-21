@@ -38,7 +38,7 @@ TEST_CASE( "INFO gets logged on failure, even if captured before successful asse
     CHECK( a == 2 );
 
     INFO( "this message should be logged" );
-    
+
     CHECK( a == 1 );
 
     INFO( "and this, but later" );
@@ -53,6 +53,13 @@ TEST_CASE( "INFO gets logged on failure, even if captured before successful asse
 TEST_CASE( "FAIL aborts the test", "[failing][messages][.]" )
 {
     FAIL( "This is a " << "failure" );    // This should output the message and abort
+    WARN( "We should never see this");
+}
+
+TEST_CASE( "FAIL_CHECK does not abort the test", "[failing][messages][.]" )
+{
+    FAIL_CHECK( "This is a " << "failure" );    // This should output the message then continue
+    WARN( "This message appears in the output");
 }
 
 #ifdef CATCH_CONFIG_VARIADIC_MACROS
@@ -85,7 +92,7 @@ TEST_CASE( "Standard output from all sections is reported", "[messages][.]" )
     {
         std::cout << "Message from section one" << std::endl;
     }
-    
+
     SECTION( "two", "" )
     {
         std::cout << "Message from section two" << std::endl;

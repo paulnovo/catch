@@ -13,10 +13,12 @@
 #include "catch_interfaces_testcase.h"
 #include "catch_common.h"
 
+#include <cctype>
+
 namespace Catch {
 
     inline TestCaseInfo::SpecialProperties parseSpecialTag( std::string const& tag ) {
-        if( startsWith( tag, "." ) ||
+        if( startsWith( tag, '.' ) ||
             tag == "hide" ||
             tag == "!hide" )
             return TestCaseInfo::IsHidden;
@@ -26,11 +28,13 @@ namespace Catch {
             return TestCaseInfo::ShouldFail;
         else if( tag == "!mayfail" )
             return TestCaseInfo::MayFail;
+        else if( tag == "!nonportable" )
+            return TestCaseInfo::NonPortable;
         else
             return TestCaseInfo::None;
     }
     inline bool isReservedTag( std::string const& tag ) {
-        return parseSpecialTag( tag ) == TestCaseInfo::None && tag.size() > 0 && !isalnum( tag[0] );
+        return parseSpecialTag( tag ) == TestCaseInfo::None && tag.size() > 0 && !std::isalnum( tag[0] );
     }
     inline void enforceNotReservedTag( std::string const& tag, SourceLineInfo const& _lineInfo ) {
         if( isReservedTag( tag ) ) {
@@ -93,6 +97,21 @@ namespace Catch {
         return TestCase( _testCase, info );
     }
 
+    void setTags( TestCaseInfo& testCaseInfo, std::set<std::string> const& tags )
+    {
+        testCaseInfo.tags = tags;
+        testCaseInfo.lcaseTags.clear();
+
+        std::ostringstream oss;
+        for( std::set<std::string>::const_iterator it = tags.begin(), itEnd = tags.end(); it != itEnd; ++it ) {
+            oss << '[' << *it << ']';
+            std::string lcaseTag = toLower( *it );
+            testCaseInfo.properties = static_cast<TestCaseInfo::SpecialProperties>( testCaseInfo.properties | parseSpecialTag( lcaseTag ) );
+            testCaseInfo.lcaseTags.insert( lcaseTag );
+        }
+        testCaseInfo.tagsAsString = oss.str();
+    }
+
     TestCaseInfo::TestCaseInfo( std::string const& _name,
                                 std::string const& _className,
                                 std::string const& _description,
@@ -101,18 +120,10 @@ namespace Catch {
     :   name( _name ),
         className( _className ),
         description( _description ),
-        tags( _tags ),
         lineInfo( _lineInfo ),
         properties( None )
     {
-        std::ostringstream oss;
-        for( std::set<std::string>::const_iterator it = _tags.begin(), itEnd = _tags.end(); it != itEnd; ++it ) {
-            oss << "[" << *it << "]";
-            std::string lcaseTag = toLower( *it );
-            properties = static_cast<SpecialProperties>( properties | parseSpecialTag( lcaseTag ) );
-            lcaseTags.insert( lcaseTag );
-        }
-        tagsAsString = oss.str();
+        setTags( *this, _tags );
     }
 
     TestCaseInfo::TestCaseInfo( TestCaseInfo const& other )

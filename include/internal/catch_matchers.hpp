@@ -8,225 +8,169 @@
 #ifndef TWOBLUECUBES_CATCH_MATCHERS_HPP_INCLUDED
 #define TWOBLUECUBES_CATCH_MATCHERS_HPP_INCLUDED
 
+#include "catch_common.h"
+
 namespace Catch {
 namespace Matchers {
     namespace Impl {
 
-    template<typename ExpressionT>
-    struct Matcher : SharedImpl<IShared>
-    {
-        typedef ExpressionT ExpressionType;
+        template<typename ArgT> struct MatchAllOf;
+        template<typename ArgT> struct MatchAnyOf;
+        template<typename ArgT> struct MatchNotOf;
 
-        virtual ~Matcher() {}
-        virtual Ptr<Matcher> clone() const = 0;
-        virtual bool match( ExpressionT const& expr ) const = 0;
-        virtual std::string toString() const = 0;
-    };
-
-    template<typename DerivedT, typename ExpressionT>
-    struct MatcherImpl : Matcher<ExpressionT> {
-
-        virtual Ptr<Matcher<ExpressionT> > clone() const {
-            return Ptr<Matcher<ExpressionT> >( new DerivedT( static_cast<DerivedT const&>( *this ) ) );
-        }
-    };
-
-    namespace Generic {
-
-        template<typename ExpressionT>
-        class AllOf : public MatcherImpl<AllOf<ExpressionT>, ExpressionT> {
+        class MatcherUntypedBase {
         public:
-
-            AllOf() {}
-            AllOf( AllOf const& other ) : m_matchers( other.m_matchers ) {}
-
-            AllOf& add( Matcher<ExpressionT> const& matcher ) {
-                m_matchers.push_back( matcher.clone() );
-                return *this;
+            std::string toString() const {
+                if( m_cachedToString.empty() )
+                    m_cachedToString = describe();
+                return m_cachedToString;
             }
-            virtual bool match( ExpressionT const& expr ) const
-            {
-                for( std::size_t i = 0; i < m_matchers.size(); ++i )
-                    if( !m_matchers[i]->match( expr ) )
+
+        protected:
+            virtual ~MatcherUntypedBase();
+            virtual std::string describe() const = 0;
+            mutable std::string m_cachedToString;
+        private:
+            MatcherUntypedBase& operator = ( MatcherUntypedBase const& );
+        };
+
+        template<typename ObjectT>
+        struct MatcherMethod {
+            virtual bool match( ObjectT const& arg ) const = 0;
+        };
+        template<typename PtrT>
+        struct MatcherMethod<PtrT*> {
+            virtual bool match( PtrT* arg ) const = 0;
+        };
+
+        template<typename ObjectT, typename ComparatorT = ObjectT>
+        struct MatcherBase : MatcherUntypedBase, MatcherMethod<ObjectT> {
+
+
+            MatchAllOf<ComparatorT> operator && ( MatcherBase const& other ) const;
+            MatchAnyOf<ComparatorT> operator || ( MatcherBase const& other ) const;
+            MatchNotOf<ComparatorT> operator ! () const;
+        };
+
+        template<typename ArgT>
+        struct MatchAllOf : MatcherBase<ArgT> {
+            virtual bool match( ArgT const& arg ) const CATCH_OVERRIDE {
+                for( std::size_t i = 0; i < m_matchers.size(); ++i ) {
+                    if (!m_matchers[i]->match(arg))
                         return false;
+                }
                 return true;
             }
-            virtual std::string toString() const {
-                std::ostringstream oss;
-                oss << "( ";
+            virtual std::string describe() const CATCH_OVERRIDE {
+                std::string description;
+                description.reserve( 4 + m_matchers.size()*32 );
+                description += "( ";
                 for( std::size_t i = 0; i < m_matchers.size(); ++i ) {
                     if( i != 0 )
-                        oss << " and ";
-                    oss << m_matchers[i]->toString();
+                        description += " and ";
+                    description += m_matchers[i]->toString();
                 }
-                oss << " )";
-                return oss.str();
+                description += " )";
+                return description;
             }
 
-        private:
-            std::vector<Ptr<Matcher<ExpressionT> > > m_matchers;
-        };
-
-        template<typename ExpressionT>
-        class AnyOf : public MatcherImpl<AnyOf<ExpressionT>, ExpressionT> {
-        public:
-
-            AnyOf() {}
-            AnyOf( AnyOf const& other ) : m_matchers( other.m_matchers ) {}
-
-            AnyOf& add( Matcher<ExpressionT> const& matcher ) {
-                m_matchers.push_back( matcher.clone() );
+            MatchAllOf<ArgT>& operator && ( MatcherBase<ArgT> const& other ) {
+                m_matchers.push_back( &other );
                 return *this;
             }
-            virtual bool match( ExpressionT const& expr ) const
-            {
-                for( std::size_t i = 0; i < m_matchers.size(); ++i )
-                    if( m_matchers[i]->match( expr ) )
+
+            std::vector<MatcherBase<ArgT> const*> m_matchers;
+        };
+        template<typename ArgT>
+        struct MatchAnyOf : MatcherBase<ArgT> {
+
+            virtual bool match( ArgT const& arg ) const CATCH_OVERRIDE {
+                for( std::size_t i = 0; i < m_matchers.size(); ++i ) {
+                    if (m_matchers[i]->match(arg))
                         return true;
+                }
                 return false;
             }
-            virtual std::string toString() const {
-                std::ostringstream oss;
-                oss << "( ";
+            virtual std::string describe() const CATCH_OVERRIDE {
+                std::string description;
+                description.reserve( 4 + m_matchers.size()*32 );
+                description += "( ";
                 for( std::size_t i = 0; i < m_matchers.size(); ++i ) {
                     if( i != 0 )
-                        oss << " or ";
-                    oss << m_matchers[i]->toString();
+                        description += " or ";
+                    description += m_matchers[i]->toString();
                 }
-                oss << " )";
-                return oss.str();
+                description += " )";
+                return description;
             }
 
-        private:
-            std::vector<Ptr<Matcher<ExpressionT> > > m_matchers;
+            MatchAnyOf<ArgT>& operator || ( MatcherBase<ArgT> const& other ) {
+                m_matchers.push_back( &other );
+                return *this;
+            }
+
+            std::vector<MatcherBase<ArgT> const*> m_matchers;
         };
 
-    }
+        template<typename ArgT>
+        struct MatchNotOf : MatcherBase<ArgT> {
 
-    namespace StdString {
+            MatchNotOf( MatcherBase<ArgT> const& underlyingMatcher ) : m_underlyingMatcher( underlyingMatcher ) {}
 
-        inline std::string makeString( std::string const& str ) { return str; }
-        inline std::string makeString( const char* str ) { return str ? std::string( str ) : std::string(); }
-
-        struct Equals : MatcherImpl<Equals, std::string> {
-            Equals( std::string const& str ) : m_str( str ){}
-            Equals( Equals const& other ) : m_str( other.m_str ){}
-
-            virtual ~Equals();
-
-            virtual bool match( std::string const& expr ) const {
-                return m_str == expr;
-            }
-            virtual std::string toString() const {
-                return "equals: \"" + m_str + "\"";
+            virtual bool match( ArgT const& arg ) const CATCH_OVERRIDE {
+                return !m_underlyingMatcher.match( arg );
             }
 
-            std::string m_str;
+            virtual std::string describe() const CATCH_OVERRIDE {
+                return "not " + m_underlyingMatcher.toString();
+            }
+            MatcherBase<ArgT> const& m_underlyingMatcher;
         };
 
-        struct Contains : MatcherImpl<Contains, std::string> {
-            Contains( std::string const& substr ) : m_substr( substr ){}
-            Contains( Contains const& other ) : m_substr( other.m_substr ){}
+        template<typename ObjectT, typename ComparatorT>
+        MatchAllOf<ComparatorT> MatcherBase<ObjectT, ComparatorT>::operator && ( MatcherBase const& other ) const {
+            return MatchAllOf<ComparatorT>() && *this && other;
+        }
+        template<typename ObjectT, typename ComparatorT>
+        MatchAnyOf<ComparatorT> MatcherBase<ObjectT, ComparatorT>::operator || ( MatcherBase const& other ) const {
+            return MatchAnyOf<ComparatorT>() || *this || other;
+        }
+        template<typename ObjectT, typename ComparatorT>
+        MatchNotOf<ComparatorT> MatcherBase<ObjectT, ComparatorT>::operator ! () const {
+            return MatchNotOf<ComparatorT>( *this );
+        }
 
-            virtual ~Contains();
-
-            virtual bool match( std::string const& expr ) const {
-                return expr.find( m_substr ) != std::string::npos;
-            }
-            virtual std::string toString() const {
-                return "contains: \"" + m_substr + "\"";
-            }
-
-            std::string m_substr;
-        };
-
-        struct StartsWith : MatcherImpl<StartsWith, std::string> {
-            StartsWith( std::string const& substr ) : m_substr( substr ){}
-            StartsWith( StartsWith const& other ) : m_substr( other.m_substr ){}
-
-            virtual ~StartsWith();
-
-            virtual bool match( std::string const& expr ) const {
-                return expr.find( m_substr ) == 0;
-            }
-            virtual std::string toString() const {
-                return "starts with: \"" + m_substr + "\"";
-            }
-
-            std::string m_substr;
-        };
-
-        struct EndsWith : MatcherImpl<EndsWith, std::string> {
-            EndsWith( std::string const& substr ) : m_substr( substr ){}
-            EndsWith( EndsWith const& other ) : m_substr( other.m_substr ){}
-
-            virtual ~EndsWith();
-
-            virtual bool match( std::string const& expr ) const {
-                return expr.find( m_substr ) == expr.size() - m_substr.size();
-            }
-            virtual std::string toString() const {
-                return "ends with: \"" + m_substr + "\"";
-            }
-
-            std::string m_substr;
-        };
-    } // namespace StdString
     } // namespace Impl
+
 
     // The following functions create the actual matcher objects.
     // This allows the types to be inferred
-    template<typename ExpressionT>
-    inline Impl::Generic::AllOf<ExpressionT> AllOf( Impl::Matcher<ExpressionT> const& m1,
-                                                    Impl::Matcher<ExpressionT> const& m2 ) {
-        return Impl::Generic::AllOf<ExpressionT>().add( m1 ).add( m2 );
+    // - deprecated: prefer ||, && and !
+    template<typename T>
+    inline Impl::MatchNotOf<T> Not( Impl::MatcherBase<T> const& underlyingMatcher ) {
+        return Impl::MatchNotOf<T>( underlyingMatcher );
     }
-    template<typename ExpressionT>
-    inline Impl::Generic::AllOf<ExpressionT> AllOf( Impl::Matcher<ExpressionT> const& m1,
-                                                    Impl::Matcher<ExpressionT> const& m2,
-                                                    Impl::Matcher<ExpressionT> const& m3 ) {
-        return Impl::Generic::AllOf<ExpressionT>().add( m1 ).add( m2 ).add( m3 );
+    template<typename T>
+    inline Impl::MatchAllOf<T> AllOf( Impl::MatcherBase<T> const& m1, Impl::MatcherBase<T> const& m2 ) {
+        return Impl::MatchAllOf<T>() && m1 && m2;
     }
-    template<typename ExpressionT>
-    inline Impl::Generic::AnyOf<ExpressionT> AnyOf( Impl::Matcher<ExpressionT> const& m1,
-                                                    Impl::Matcher<ExpressionT> const& m2 ) {
-        return Impl::Generic::AnyOf<ExpressionT>().add( m1 ).add( m2 );
+    template<typename T>
+    inline Impl::MatchAllOf<T> AllOf( Impl::MatcherBase<T> const& m1, Impl::MatcherBase<T> const& m2, Impl::MatcherBase<T> const& m3 ) {
+        return Impl::MatchAllOf<T>() && m1 && m2 && m3;
     }
-    template<typename ExpressionT>
-    inline Impl::Generic::AnyOf<ExpressionT> AnyOf( Impl::Matcher<ExpressionT> const& m1,
-                                                    Impl::Matcher<ExpressionT> const& m2,
-                                                    Impl::Matcher<ExpressionT> const& m3 ) {
-        return Impl::Generic::AnyOf<ExpressionT>().add( m1 ).add( m2 ).add( m3 );
+    template<typename T>
+    inline Impl::MatchAnyOf<T> AnyOf( Impl::MatcherBase<T> const& m1, Impl::MatcherBase<T> const& m2 ) {
+        return Impl::MatchAnyOf<T>() || m1 || m2;
     }
-
-    inline Impl::StdString::Equals      Equals( std::string const& str ) {
-        return Impl::StdString::Equals( str );
-    }
-    inline Impl::StdString::Equals      Equals( const char* str ) {
-        return Impl::StdString::Equals( Impl::StdString::makeString( str ) );
-    }
-    inline Impl::StdString::Contains    Contains( std::string const& substr ) {
-        return Impl::StdString::Contains( substr );
-    }
-    inline Impl::StdString::Contains    Contains( const char* substr ) {
-        return Impl::StdString::Contains( Impl::StdString::makeString( substr ) );
-    }
-    inline Impl::StdString::StartsWith  StartsWith( std::string const& substr ) {
-        return Impl::StdString::StartsWith( substr );
-    }
-    inline Impl::StdString::StartsWith  StartsWith( const char* substr ) {
-        return Impl::StdString::StartsWith( Impl::StdString::makeString( substr ) );
-    }
-    inline Impl::StdString::EndsWith    EndsWith( std::string const& substr ) {
-        return Impl::StdString::EndsWith( substr );
-    }
-    inline Impl::StdString::EndsWith    EndsWith( const char* substr ) {
-        return Impl::StdString::EndsWith( Impl::StdString::makeString( substr ) );
+    template<typename T>
+    inline Impl::MatchAnyOf<T> AnyOf( Impl::MatcherBase<T> const& m1, Impl::MatcherBase<T> const& m2, Impl::MatcherBase<T> const& m3 ) {
+        return Impl::MatchAnyOf<T>() || m1 || m2 || m3;
     }
 
 } // namespace Matchers
 
 using namespace Matchers;
+using Matchers::Impl::MatcherBase;
 
 } // namespace Catch
 

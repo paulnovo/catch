@@ -8,10 +8,7 @@
 #ifndef TWOBLUECUBES_CATCH_SECTION_INFO_HPP_INCLUDED
 #define TWOBLUECUBES_CATCH_SECTION_INFO_HPP_INCLUDED
 
-#include "catch_common.h"
-
-#include <map>
-#include <string>
+#include "catch_section_info.h"
 
 namespace Catch {
 
@@ -36,7 +33,7 @@ namespace Catch {
 
         RunningSection( std::string const& name )
         :   m_state( Root ),
-            m_parent( NULL ),
+            m_parent( CATCH_NULL ),
             m_name( name )
         {}
 

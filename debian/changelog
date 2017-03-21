@@ -1,3 +1,12 @@
+catch (1.8.2-1) unstable; urgency=medium
+
+  * Imported Upstream version 1.8.2
+  * Reduce the minimum required cmake version
+  * Remove no longer supported command line argument
+  * No need to install header twice, CMake is doing it
+
+ -- Paul Novotny <paul@paulnovo.us>  Tue, 21 Mar 2017 08:26:17 -0400
+
 catch (1.2.0-1) unstable; urgency=medium
 
   * Imported Upstream version 1.2.0
